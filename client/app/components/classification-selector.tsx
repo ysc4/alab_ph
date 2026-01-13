@@ -1,4 +1,4 @@
-import { ChevronDownIcon } from "@heroicons/react/24/outline";
+import { ChevronDown } from "lucide-react";
 
 interface ClassificationSelectorProps {
   onSelect?: (selected: string) => void;
@@ -26,7 +26,7 @@ const ClassificationSelector: React.FC<ClassificationSelectorProps> = ({ onSelec
 
       </select>
 
-      <ChevronDownIcon
+      <ChevronDown
         className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-text-primary w-6 h-6"
       />
     </div>

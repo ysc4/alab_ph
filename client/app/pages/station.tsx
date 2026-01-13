@@ -10,18 +10,17 @@ import {
 } from "recharts";
 import { useState, useEffect } from "react";
 import Toggle from "../components/toggle";
-import { formatDate, formatDateShort, formatDateWithWeek, getWeekOfMonth } from "../utils/dateFormatter";
-import StationSelector from "../components/station-selector";
+import { formatDate, formatDateShort, getWeekOfMonth } from "../utils/dateFormatter";
 import {
-  HeartIcon,
-  CursorArrowRaysIcon,
-  BuildingOfficeIcon,
-  SparklesIcon,
-  ShieldCheckIcon,
-  CalendarDaysIcon,
-  BuildingLibraryIcon,
-  MegaphoneIcon,
-} from "@heroicons/react/24/outline";
+  Heart,
+  Motorbike,
+  Building,
+  Sparkles,
+  ShieldCheck,
+  CalendarDays,
+  Landmark,
+  Megaphone,
+} from "lucide-react";
 import React from "react";
 
 interface TrendData {
@@ -255,19 +254,19 @@ const Station: React.FC<{ selectedStationId: number; selectedDate: string; onSta
           {
             title: "Heat Index Potential Effects",
             items: [
-              { icon: HeartIcon, title: "Health Risk" },
-              { icon: CursorArrowRaysIcon, title: "Daily Activities" },
-              { icon: BuildingOfficeIcon, title: "Infrastructure Stress" },
-              { icon: SparklesIcon, title: "Environmental Stress" },
+              { icon: Heart, title: "Health Risk" },
+              { icon: Motorbike, title: "Daily Activities" },
+              { icon: Building, title: "Infrastructure Stress" },
+              { icon: Sparkles, title: "Environmental Stress" },
             ],
           },
           {
             title: "Recommended Interventions",
             items: [
-              { icon: ShieldCheckIcon, title: "Health Risk" },
-              { icon: CalendarDaysIcon, title: "Daily Activities" },
-              { icon: BuildingLibraryIcon, title: "Infrastructure Stress" },
-              { icon: MegaphoneIcon, title: "Environmental Stress" },
+              { icon: ShieldCheck, title: "Health Risk" },
+              { icon: CalendarDays, title: "Daily Activities" },
+              { icon: Landmark, title: "Infrastructure Stress" },
+              { icon: Megaphone, title: "Environmental Stress" },
             ],
           },
         ].map((section) => (

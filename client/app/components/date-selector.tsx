@@ -1,4 +1,4 @@
-import { CalendarIcon } from "@heroicons/react/24/outline";
+import { Calendar } from "lucide-react";
 import { useRef } from "react";
 
 interface DateSelectorProps {
@@ -39,7 +39,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
         "
       />
 
-      <CalendarIcon
+      <Calendar
         className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-text-primary w-5 h-5"
       />
     </div>

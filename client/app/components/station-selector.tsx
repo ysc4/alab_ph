@@ -1,4 +1,4 @@
-import { ChevronDownIcon } from "@heroicons/react/24/outline";
+import { ChevronDown } from "lucide-react";
 
 interface StationSelectorProps {
   onSelect?: (stationId: number) => void;
@@ -52,7 +52,7 @@ const StationSelector: React.FC<StationSelectorProps> = ({ onSelect }) => {
         ))}
       </select>
 
-      <ChevronDownIcon
+      <ChevronDown
         className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-text-primary w-6 h-6"
       />
     </div>

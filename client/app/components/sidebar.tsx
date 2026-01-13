@@ -1,13 +1,5 @@
-import React, { JSX, ForwardRefExoticComponent, RefAttributes } from "react";
-import { HomeIcon, MapIcon, SignalIcon } from "@heroicons/react/24/outline";
-import { SVGProps } from "react";
-
-type IconComponent = ForwardRefExoticComponent<
-  Omit<SVGProps<SVGSVGElement>, "ref"> & {
-    title?: string;
-    titleId?: string;
-  } & RefAttributes<SVGSVGElement>
->;
+import React, { JSX } from "react";
+import { Home, Map, Signal, LucideIcon } from "lucide-react";
 
 type PageKey = "Home" | "Map" | "Station";
 
@@ -18,7 +10,7 @@ interface SidebarProps {
 
 interface MenuItem {
   name: PageKey;
-  icon: IconComponent;
+  icon: LucideIcon;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -26,9 +18,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onPageChange,
 }) => {
   const menuItems: MenuItem[] = [
-    { name: "Home", icon: HomeIcon },
-    { name: "Map", icon: MapIcon },
-    { name: "Station", icon: SignalIcon },
+    { name: "Home", icon: Home },
+    { name: "Map", icon: Map },
+    { name: "Station", icon: Signal },
   ];
 
   return (

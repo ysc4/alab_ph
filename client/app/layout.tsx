@@ -11,7 +11,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Sola",
+  title: "Alab-PH",
   description: "A web dashboard for heat index forecasting in the Philippines",
 };
 
