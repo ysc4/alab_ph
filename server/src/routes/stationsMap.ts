@@ -1,32 +1,86 @@
-import { Router } from 'express';
-import { getDB } from '../db';
+import { Router } from "express";
+import { getDB } from "../db";
 
 const router = Router();
 
-router.get('/stationMarkers/:id', async (req, res) => {
+// Fetch all stations with lat/lng and latest heat_index (or specific date)
+router.get("/stations-map", async (req, res) => {
   try {
-    const { id } = req.params;
     const pool = getDB();
+    const { date } = req.query;
 
     const query = `
-      SELECT 
+      SELECT
         s.id,
         s.station AS name,
         s.latitude AS lat,
         s.longitude AS lng,
         COALESCE(hi.actual, 0) AS temp,
         COALESCE(hi.pagasa_forecasted, 0) AS forecasted,
-        COALESCE(hi.model_forecasted, 0) AS model_forecasted,
-        COALESCE(c.level, 'N/A') AS risk_level
+        COALESCE(hi.model_forecasted, 0) AS modelForecasted,
+        COALESCE(c.level, 'N/A') AS riskLevel,
+        COALESCE(hi.date::text, $1::text) AS selectedDate
       FROM stations s
       LEFT JOIN LATERAL (
-        SELECT 
-          actual,
-          pagasa_forecasted,
-          model_forecasted,
-          risk_level
+        SELECT *
         FROM heat_index
-        WHERE heat_index.station = s.id
+        WHERE station = s.id
+        ${date ? `AND date = $1` : ""}
+        ORDER BY date DESC
+        LIMIT 1
+      ) hi ON true
+      LEFT JOIN classification c
+        ON hi.risk_level = c.id
+      WHERE s.latitude IS NOT NULL
+        AND s.longitude IS NOT NULL
+      ORDER BY s.station;
+    `;
+
+    const result = await pool.query(query, [date || null]);
+
+    const stations = result.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      lat: parseFloat(row.lat ?? 0),
+      lng: parseFloat(row.lng ?? 0),
+      temp: parseFloat(row.temp ?? 0),
+      forecasted: parseFloat(row.forecasted ?? 0),
+      modelForecasted: parseFloat(row.modelforecasted ?? 0),
+      riskLevel: row.risklevel,
+      selectedDate: row.selecteddate,
+    }));
+
+    res.json(stations);
+  } catch (err) {
+    console.error("Error fetching stations for map:", err);
+    res.status(500).json({ error: "Failed to fetch stations for map" });
+  }
+});
+
+// Fetch single station by ID with latest heat_index
+router.get("/station-markers/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date } = req.query;
+    const pool = getDB();
+
+    const query = `
+      SELECT
+        s.id,
+        s.station AS name,
+        s.latitude AS lat,
+        s.longitude AS lng,
+        COALESCE(hi.actual, 0) AS temp,
+        COALESCE(hi.pagasa_forecasted, 0) AS forecasted,
+        COALESCE(hi.model_forecasted, 0) AS modelForecasted,
+        COALESCE(c.level, 'N/A') AS riskLevel,
+        COALESCE(hi.date::text, $2::text) AS selectedDate
+      FROM stations s
+      LEFT JOIN LATERAL (
+        SELECT *
+        FROM heat_index
+        WHERE station = s.id
+        ${date ? `AND date = $2` : ""}
         ORDER BY date DESC
         LIMIT 1
       ) hi ON true
@@ -35,31 +89,30 @@ router.get('/stationMarkers/:id', async (req, res) => {
       WHERE s.id = $1;
     `;
 
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(query, [id, date || null]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Station marker not found' });
+      return res.status(404).json({ error: "Station marker not found" });
     }
 
-    const marker = result.rows[0];
-
+    const row = result.rows[0];
     const markerData = {
-      id: marker.id,
-      name: marker.name,
-      lat: parseFloat(marker.lat ?? 0),
-      lng: parseFloat(marker.lng ?? 0),
-      temp: parseFloat(marker.temp ?? 0),
-      forecasted: parseFloat(marker.forecasted ?? 0),
-      modelForecasted: parseFloat(marker.model_forecasted ?? 0),
-      riskLevel: marker.risk_level,
+      id: row.id,
+      name: row.name,
+      lat: parseFloat(row.lat ?? 0),
+      lng: parseFloat(row.lng ?? 0),
+      temp: parseFloat(row.temp ?? 0),
+      forecasted: parseFloat(row.forecasted ?? 0),
+      modelForecasted: parseFloat(row.modelforecasted ?? 0),
+      riskLevel: row.risklevel,
+      selectedDate: row.selecteddate,
     };
 
     res.json(markerData);
-  } catch (error) {
-    console.error('Database error:', error);
-    res.status(500).json({ error: 'Failed to fetch station marker details' });
+  } catch (err) {
+    console.error("Error fetching station marker:", err);
+    res.status(500).json({ error: "Failed to fetch station marker" });
   }
 });
-
 
 export default router;
