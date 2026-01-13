@@ -154,19 +154,27 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
   // Fetch summary data
   useEffect(() => {
     fetch(`${API_BASE_URL}/summary?date=${selectedDate}`)
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      .then(async res => {
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('Summary response error:', text);
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
         return res.json();
       })
-      .then(setSummaryData)
+      .then(data => setSummaryData(data))
       .catch(err => console.error("Error fetching summary:", err));
   }, [selectedDate]);
 
   // Fetch nationwide heat index trend
   useEffect(() => {
     fetch(`${API_BASE_URL}/nationwide-trend?range=${heatIndexPeriod}&date=${selectedDate}`)
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      .then(async res => {
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('Trend response error:', text);
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
         return res.json();
       })
       .then(data => setAverageHeatIndexData(data))
@@ -176,8 +184,12 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
   // Fetch forecast error data
   useEffect(() => {
     fetch(`${API_BASE_URL}/forecast-error?range=${forecastErrorPeriod}&date=${selectedDate}`)
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      .then(async res => {
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('Forecast error response error:', text);
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
         return res.json();
       })
       .then(data => setForecastErrorData(data))
@@ -187,8 +199,12 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
   // Fetch stations table data
   useEffect(() => {
     fetch(`${API_BASE_URL}/stations-table?date=${selectedDate}`)
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      .then(async res => {
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('Stations response error:', text);
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
         return res.json();
       })
       .then(data => setStations(data))
@@ -198,8 +214,12 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
   // Fetch synoptic classification data
   useEffect(() => {
     fetch(`${API_BASE_URL}/synoptic-classification?date=${selectedDate}`)
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      .then(async res => {
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('Synoptic response error:', text);
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
         return res.json();
       })
       .then(data => setSynopticData(data))
