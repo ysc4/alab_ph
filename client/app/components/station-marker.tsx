@@ -14,16 +14,32 @@ interface StationMarkerProps {
   forecasted?: number;
   modelForecasted?: number;
   riskLevel?: string;
+  selectedDate?: string;
   isOpen?: boolean;
   onOpen?: () => void;
   onClose?: () => void;
 }
 
+const getMarkerColorFromRiskLevel = (riskLevel?: string): string => {
+  if (!riskLevel || riskLevel === 'N/A') return "#FFC107"; // Default yellow for no data
+  const level = riskLevel.toLowerCase().trim();
+  
+  // Match exact classifications from database
+  if (level === "extreme danger") return "#B71C1C"; // Dark red
+  if (level === "danger") return "#F44336"; // Red
+  if (level === "extreme caution") return "#FF9800"; // Orange
+  if (level === "caution") return "#FFC107"; // Amber/Yellow
+  
+  // Fallback for any unmatched values
+  return "#9E9E9E"; // Gray for unknown
+};
+
 const getMarkerColor = (temp: number): string => {
   if (temp > 52) return "#B71C1C"; // Extreme Danger
   if (temp >= 42) return "#F44336"; // Danger
   if (temp >= 33) return "#FF9800"; // Extreme Caution
-  return "#FFC107"; // Caution
+  if (temp >= 27) return "#FFC107"; // Caution
+  return "#9E9E9E"; // Gray for unknown/low risk
 };
 
 const getClassification = (temp: number): string => {
@@ -33,16 +49,34 @@ const getClassification = (temp: number): string => {
   return "Caution";
 };
 
-const StationMarker: FC<StationMarkerProps> = ({ id, lat, lng, temp, name, forecasted, modelForecasted, riskLevel, isOpen = false, onOpen, onClose }) => {
+const StationMarker: FC<StationMarkerProps> = ({ id, lat, lng, temp, name, forecasted, modelForecasted, riskLevel, selectedDate, isOpen = false, onOpen, onClose }) => {
 
-  const markerColor = getMarkerColor(temp);
+  const markerColor = riskLevel ? getMarkerColorFromRiskLevel(riskLevel) : getMarkerColor(temp);
   const classification = riskLevel || getClassification(temp);
 
+  // Check if date is between March 2023 and May 2023
+  const shouldShowPagasa = () => {
+    if (!selectedDate || !forecasted) return false;
+    const date = new Date(selectedDate);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1; // 0-indexed
+    return year === 2023 && month >= 3 && month <= 5;
+  };
+
   const heatSections = [
-    ...(forecasted && forecasted > 0 ? [{ label: "PAGASA-Forecasted Heat Index", value: forecasted, color: "#1666BA" }] : []),
-    { label: "Actual Heat Index", value: temp, color: markerColor },
-    { label: "Model-Forecasted Heat Index", value: modelForecasted || temp, color: "#1666BA" },
+    ...(shouldShowPagasa() ? [{ label: "PAGASA-Forecasted Heat Index", value: forecasted || 0, color: "#1666BA" }] : []),
+    { label: "Actual Heat Index", value: temp || 0, color: markerColor },
+    { label: "Model-Forecasted Heat Index", value: modelForecasted || 0, color: "#1666BA" },
   ];
+
+  const markerIcon = {
+    path: google.maps.SymbolPath.CIRCLE,
+    fillColor: markerColor,
+    fillOpacity: 1,
+    strokeColor: "#FFFFFF",
+    strokeWeight: 2,
+    scale: 8,
+  };
 
   return (
     <>
@@ -50,6 +84,7 @@ const StationMarker: FC<StationMarkerProps> = ({ id, lat, lng, temp, name, forec
         position={{ lat, lng }}
         onClick={() => onOpen?.()}
         title={name}
+        icon={markerIcon}
       />
       {isOpen && (
         <InfoWindow position={{ lat, lng }} onCloseClick={() => onClose?.()}>
