@@ -23,6 +23,11 @@ const Header: React.FC<HeaderProps> = ({ title, activePage, selectedDate, onStat
           <DateSelector value={selectedDate} onSelect={onDateSelect} />
         </div>
       )}
+      {activePage === "Map" && (
+        <div className="flex gap-4">
+          <DateSelector value={selectedDate} onSelect={onDateSelect} />
+        </div>
+      )}      
       {activePage === "Station" && (
         <div className="flex gap-4">
           <DateSelector value={selectedDate} onSelect={onDateSelect} />
