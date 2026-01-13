@@ -13,10 +13,6 @@ router.get('/station/:stationId', async (req, res) => {
     console.log('  Station ID:', stationId);
     console.log('  Date:', date);
 
-    const dateFilter = date ? `AND hi.date = '${date}'` : '';
-    console.log('  Query Params:', [stationId, stationId]);
-    console.log('  Date Filter:', dateFilter || 'No date filter');
-
     /* ===============================
        1. Station + Latest Observation
     ================================ */
@@ -42,11 +38,6 @@ router.get('/station/:stationId', async (req, res) => {
     `;
 
     const stationResult = await pool.query(stationQuery);
-
-    console.log('  📍 Station Query Result:', stationResult.rows.length, 'rows');
-    if (stationResult.rows.length > 0) {
-      console.log('    Station Data:', stationResult.rows[0]);
-    }
 
     if (stationResult.rows.length === 0) {
       return res.status(404).json({ error: 'Station not found' });
@@ -75,7 +66,6 @@ router.get('/station/:stationId', async (req, res) => {
           rank: rankResult.rows[0].rank,
           totalStations: rankResult.rows[0].total_stations
         };
-        console.log('  🏆 Rank Data:', rankData);
       }
     }
 
@@ -96,9 +86,6 @@ router.get('/station/:stationId', async (req, res) => {
 
     const forecastResult = await pool.query(forecastQuery);
     const forecast = forecastResult.rows[0] || {};
-
-    console.log('  📅 Forecast Query Result:', forecastResult.rows.length, 'rows');
-    console.log('    Forecast Data:', forecast);
 
     /* ===============================
        3. Trend Data (Last 31 Days)
@@ -121,7 +108,28 @@ router.get('/station/:stationId', async (req, res) => {
       temps.length > 1 ? (temps[0] - temps[1]).toFixed(2) : '0';
 
     /* ===============================
-       4. Response
+       4. Fetch Station-Specific Absolute Forecast Errors
+    ================================ */
+    const metricsQuery = `
+      SELECT rmse, mae, rsquared, 1day_abs_error, 2day_abs_error
+      FROM model_metrics
+      WHERE station = ${stationId}
+      ${date ? `AND date = '${date}'` : ''}
+      ORDER BY date DESC
+      LIMIT 1
+    `;
+
+    const metricsResult = await pool.query(metricsQuery);
+    const metrics = metricsResult.rows[0] || {
+      rmse: 'N/A',
+      mae: 'N/A',
+      r2: 'N/A',
+      absError1Day: null,
+      absError2Day: null,
+    };
+
+    /* ===============================
+       5. Response
     ================================ */
     res.json({
       station: {
@@ -161,10 +169,12 @@ router.get('/station/:stationId', async (req, res) => {
         .reverse(),
 
       modelMetrics: {
-        rmse: '2.1',
-        mae: '2.1',
-        r2: '0.85',
-        bias: '0.2',
+        rmse: metrics.rmse,
+        mae: metrics.mae,
+        r2: metrics.r2,
+        bias: metrics.bias,
+        absError1Day: metrics['1day_abs_error'],
+        absError2Day: metrics['2day_abs_error'],
       },
     });
 

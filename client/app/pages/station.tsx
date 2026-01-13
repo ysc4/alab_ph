@@ -37,21 +37,34 @@ interface StationData {
     date: string;
     rank: number | null;
   };
-  forecasts: Array<{ label: string; date: string; temp: number | null }>;
+  forecasts: Array<{ date: string; temp: number | null }>;
   trend: TrendData[];
-  modelMetrics: { rmse: string; mae: string; r2: string; bias: string };
+  modelMetrics: {
+    rmse: string;
+    mae: string;
+    rsquared: string;
+    absError1Day: number | null;
+    absError2Day: number | null;
+  };
 }
 
-const Station: React.FC<{ selectedStationId: number; selectedDate: string; onStationSelect: (id: number) => void; onDateSelect: (date: string) => void }> = ({ selectedStationId, selectedDate, onStationSelect, onDateSelect }) => {
-  const [heatIndexTrendPeriod, setHeatIndexTrendPeriod] = useState<"Week" | "Month">("Week");
-  const [forecastErrorPeriod, setForecastErrorPeriod] = useState<"Week" | "Month">("Week");
+const Station: React.FC<{
+  selectedStationId: number;
+  selectedDate: string;
+  onStationSelect: (id: number) => void;
+  onDateSelect: (date: string) => void;
+}> = ({ selectedStationId, selectedDate }) => {
+  const [heatIndexTrendPeriod, setHeatIndexTrendPeriod] =
+    useState<"Week" | "Month">("Week");
   const [stationData, setStationData] = useState<StationData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStationData = async () => {
       try {
-        const response = await fetch(`http://localhost:4001/api/station/${selectedStationId}?date=${selectedDate}`);
+        const response = await fetch(
+          `http://localhost:4001/api/station/${selectedStationId}?date=${selectedDate}`
+        );
         if (!response.ok) throw new Error("Failed to fetch station data");
         const data = await response.json();
         setStationData(data);
@@ -71,64 +84,32 @@ const Station: React.FC<{ selectedStationId: number; selectedDate: string; onSta
   const selectedWeek = getWeekOfMonth(selectedDate);
 
   const getFilteredTrendDataByWeek = (data: TrendData[], week: number) => {
-    // Filter trend data based on the dates that fall in the selected week
-    const firstDayOfMonth = new Date(new Date(selectedDate).getFullYear(), new Date(selectedDate).getMonth(), 1);
     const daysPerWeek = 7;
     const startDay = (week - 1) * daysPerWeek + 1;
     const endDay = startDay + daysPerWeek - 1;
 
     return data.filter((item) => {
-      const itemDate = new Date(item.date);
-      const dayOfMonth = itemDate.getDate();
-      return dayOfMonth >= startDay && dayOfMonth <= endDay;
-    });
-  };
-
-  const getWeekForDay = (day: number | string): number => {
-    const dayNum = typeof day === "string" ? parseInt(day) : day;
-    return Math.ceil((dayNum + 0) / 7);
-  };
-
-  const formatDayWithWeek = (day: number | string): string => {
-    const dayNum = typeof day === "string" ? parseInt(day) : day;
-    const week = getWeekForDay(dayNum);
-    return `W${week} ${String(dayNum).padStart(2, "0")}`;
-  };
-
-  const heatIndexTrendRaw = heatIndexTrendPeriod === "Week" 
-    ? getFilteredTrendDataByWeek(stationData.trend, selectedWeek)
-    : stationData.trend.slice(0, 31);
-
-  const filteredHeatIndexTrendData = heatIndexTrendRaw.map((item) => ({
-    ...item,
-    modelForecast: (item.temp as number) + (Math.random() - 0.5) * 2,
-    pagasaForecast: (item.temp as number) + (Math.random() - 0.5) * 3,
-  }));
-
-  const meanForecastErrorData = Array.from({ length: 31 }, (_, i) => ({
-    day: i + 1,
-    t_plus_one: 2 + Math.random(),
-    t_plus_two: 3 + Math.random(),
-  }));
-
-  const getFilteredMeanForecastErrorByWeek = (data: any[], week: number) => {
-    const daysPerWeek = 7;
-    const startDay = (week - 1) * daysPerWeek + 1;
-    const endDay = startDay + daysPerWeek - 1;
-    return data.filter((item) => {
-      const day = item.day;
+      const day = new Date(item.date).getDate();
       return day >= startDay && day <= endDay;
     });
   };
 
-  const filteredMeanForecastErrorData = forecastErrorPeriod === "Week" 
-    ? getFilteredMeanForecastErrorByWeek(meanForecastErrorData, selectedWeek)
-    : meanForecastErrorData.slice(0, 31);
+  const heatIndexTrendData =
+    heatIndexTrendPeriod === "Week"
+      ? getFilteredTrendDataByWeek(stationData.trend, selectedWeek)
+      : stationData.trend;
+
+  const absoluteForecastErrorData = [
+    {
+      label: "Current",
+      t_plus_one: stationData.modelMetrics.absError1Day,
+      t_plus_two: stationData.modelMetrics.absError2Day,
+    },
+  ];
 
   const formatTempChange = (tempChange: number) => {
-    const num = Number(tempChange);
-    const sign = num > 0 ? '+' : '-';
-    return `${sign}${num.toFixed(2)}°C`;
+    const sign = tempChange >= 0 ? "+" : "-";
+    return `${sign}${Math.abs(tempChange).toFixed(2)}°C`;
   };
 
   return (
@@ -162,8 +143,7 @@ const Station: React.FC<{ selectedStationId: number; selectedDate: string; onSta
                   {[
                     { label: "RMSE", value: stationData.modelMetrics.rmse },
                     { label: "MAE", value: stationData.modelMetrics.mae },
-                    { label: "R²", value: stationData.modelMetrics.r2 },
-                    { label: "BIAS", value: stationData.modelMetrics.bias }
+                    { label: "R²", value: stationData.modelMetrics.rsquared },
                   ].map((metric) => (
                     <React.Fragment key={metric.label}>
                       <div className="italic text-text-primary">{metric.label}</div>
@@ -178,14 +158,18 @@ const Station: React.FC<{ selectedStationId: number; selectedDate: string; onSta
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-5 mt-5 mb-5">
-        {stationData.forecasts.map((forecast) => (
+        {stationData.forecasts.map((forecast, index) => (
           <div
-            key={forecast.label}
-            className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center text-center"
+            key={index}
+            className="bg-white rounded-xl shadow-sm p-6 text-center"
           >
-            <div className="text-[24px] font-semibold text-text-primary">{forecast.label}</div>
-            <div className="text-[16px] text-text-muted">{formatDate(forecast.date)}</div>
-            <div className="text-[70px] font-bold leading-none mt-2 mb-4 text-primary">
+            <div className="text-lg font-semibold">
+              {index === 0 ? "Tomorrow" : "Day After Tomorrow"}
+            </div>
+            <div className="text-sm text-gray-500">
+              {formatDate(forecast.date)}
+            </div>
+            <div className="text-5xl font-bold text-primary mt-3">
               {forecast.temp ? `${forecast.temp}°C` : "N/A"}
             </div>
           </div>
@@ -194,59 +178,60 @@ const Station: React.FC<{ selectedStationId: number; selectedDate: string; onSta
         <div className="bg-white rounded-xl shadow-sm p-6 xl:col-span-2 xl:row-span-2 flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-2xl font-extrabold">
-              Heat Index Trend
+             Heat Index Trend
             </h1>
             <Toggle options={["Week", "Month"]} onSelect={(selected) => setHeatIndexTrendPeriod(selected as "Week" | "Month")} />
           </div>
           <div className="flex-1 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={filteredHeatIndexTrendData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickFormatter={formatDateShort} />
-                <YAxis  />
-                <Tooltip />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="temp"
-                  stroke="#FF6B6B"
-                  name="Actual Heat Index"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="modelForecast"
-                  stroke="#1E40AF"
-                  name="Model-Forecasted"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="pagasaForecast"
-                  stroke="#7C3AED"
-                  name="PAGASA-Forecasted"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+            <LineChart data={heatIndexTrendData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" tickFormatter={formatDateShort} />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="temp"
+                stroke="#FF6B6B"
+                name="Actual Heat Index"
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
+      </div>
 
         <div className="bg-white rounded-xl shadow-sm p-6 xl:col-span-2">
-          <div className="flex items-center justify-between mb-3">
-            <h1 className="text-2xl font-extrabold">
-              Absolute Forecast Error
-            </h1>
-            <Toggle options={["Week", "Month"]} onSelect={(selected) => setForecastErrorPeriod(selected as "Week" | "Month")} />
+          <div className="flex justify-between mb-3">
+            <h1 className="text-2xl font-extrabold">Absolute Forecast Error</h1>
+            <Toggle
+              options={["Week", "Month"]}
+              onSelect={(v) =>
+                setHeatIndexTrendPeriod(v as "Week" | "Month")
+              }
+            />
           </div>
-         <ResponsiveContainer width="100%" height={400}>
-                     <LineChart data={filteredMeanForecastErrorData}>
-                       <CartesianGrid strokeDasharray="3 3" />
-                       <XAxis dataKey="day" />
-                       <YAxis />
-                       <Tooltip />
-                       <Legend />
-                       <Line type="monotone" dataKey="t_plus_one" stroke="#1E40AF" name="Error (tomorrow)" />
-                       <Line type="monotone" dataKey="t_plus_two" stroke="#7AB3EF" name="Error (day after tomorrow)" />
-                     </LineChart>
-                   </ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={absoluteForecastErrorData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="t_plus_one"
+                stroke="#1E40AF"
+                name="1-Day Ahead Error"
+              />
+              <Line
+                type="monotone"
+                dataKey="t_plus_two"
+                stroke="#7AB3EF"
+                name="2-Day Ahead Error"
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
         {/* TABLES */}
