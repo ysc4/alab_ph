@@ -14,14 +14,6 @@ export default function Page(): React.ReactNode {
   const [selectedStationId, setSelectedStationId] = useState<number>(1);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
-  // Reset filters to today when navigating to Station page
-  useEffect(() => {
-    if (activePage === "Station") {
-      setSelectedDate(new Date().toISOString().split('T')[0]);
-      setSelectedStationId(1);
-    }
-  }, [activePage]);
-
   const pageTitles: Record<PageKey, string> = {
     Home: "Heat Index Overview",
     Map: "PAGASA Synoptic Stations Map",
@@ -35,7 +27,7 @@ export default function Page(): React.ReactNode {
         <Header title={pageTitles[activePage]} activePage={activePage} selectedDate={selectedDate} onStationSelect={setSelectedStationId} onDateSelect={setSelectedDate} />
         <div className="content-placeholder">
           {activePage === "Home" && <Home selectedDate={selectedDate} onDateSelect={setSelectedDate} />}
-          {activePage === "Map" && <Map />}
+          {activePage === "Map" && <Map selectedDate={selectedDate} onDateSelect={setSelectedDate} />}
           {activePage === "Station" && <Station selectedStationId={selectedStationId} selectedDate={selectedDate} onStationSelect={setSelectedStationId} onDateSelect={setSelectedDate} />}
         </div>
       </div>
