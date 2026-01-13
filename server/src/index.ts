@@ -4,7 +4,6 @@ import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import { connectDB, closeDB } from "./db";
-import stationsRouter from "./routes/stations";
 import stationDetailsRouter from "./routes/stationDetails";
 import stationsMapRouter from "./routes/stationsMap";
 import homeDataRouter from "./routes/homeData";
@@ -21,7 +20,6 @@ app.get("/dashboard", (_req, res) => {
   res.json({ status: "OK", server: "ALAB-PH SERVER" });
 });
 
-app.use("/api", stationsRouter);
 app.use("/api", stationDetailsRouter);
 app.use("/api", stationsMapRouter);
 app.use("/api", homeDataRouter);
