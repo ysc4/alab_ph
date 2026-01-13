@@ -1,76 +1,53 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Bar, BarChart, Cell, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import Toggle from "../components/toggle";
 import ClassificationSelector from "../components/classification-selector";
-import { formatDateWithWeek, getWeekOfMonth } from "../utils/dateFormatter";
+
+const API_BASE_URL = "http://localhost:4001/api";
 
 // Types
 type Station = {
   name: string;
-  heatIndex: number;
-  riskLevel: "Caution" | "Extreme Caution" | "Danger" | "Extreme Danger";
+  heat_index: number;
+  risk_level: "Caution" | "Extreme Caution" | "Danger" | "Extreme Danger";
   trend?: string;
 };
 
-interface averageHI {
+interface AverageHI {
   day: string;
   observed: number;
-  forecasted: number;
 }
 
-// Sample Data
-const averageHeatIndexData: averageHI[] = Array.from({ length: 31 }, (_, i) => ({
-    day: String(i + 1).padStart(2, "0"),
-    observed: 37 + Math.random() * 8,
-    forecasted: 36 + Math.random() * 8
-  }));
+interface ForecastError {
+  day: number;
+  t_plus_one: number;
+  t_plus_two: number;
+}
 
-const meanForecastErrorData = Array.from({ length: 31 }, (_, i) => ({
-  day: i + 1,
-  t_plus_one: 1 + Math.random() * 3,
-  t_plus_two: 1.5 + Math.random() * 3.5,
-}));
+interface SynopticData {
+  name: string;
+  value: number;
+  color: string;
+}
 
-const stations: Station[] = [
-  { name: "Ambulong, Batangas", heatIndex: 40, riskLevel: "Extreme Caution", trend: "+1.1°C" },
-  { name: "Baguio City, Benguet", heatIndex: 42, riskLevel: "Extreme Caution", trend: "-2.1°C" },
-  { name: "Baler, Aurora", heatIndex: 41, riskLevel: "Extreme Caution" },
-  { name: "Basco, Batanes", heatIndex: 39, riskLevel: "Extreme Caution" },
-  { name: "Calapan, Oriental Mindoro", heatIndex: 38, riskLevel: "Extreme Caution" },
-  { name: "Clark Airport, Pampanga", heatIndex: 45, riskLevel: "Danger" },
-  { name: "Daet, Camarines Norte", heatIndex: 39, riskLevel: "Extreme Caution" },
-  { name: "Dagupan City, Pangasinan", heatIndex: 41, riskLevel: "Extreme Caution" },
-  { name: "Iba, Zambales", heatIndex: 42, riskLevel: "Extreme Caution" },
-  { name: "Infanta, Quezon", heatIndex: 41, riskLevel: "Extreme Caution" },
-  { name: "Laoag City, Ilocos Norte", heatIndex: 40, riskLevel: "Extreme Caution", trend: "+1.1°C" },
-  { name: "Legazpi City, Albay", heatIndex: 42, riskLevel: "Extreme Caution", trend: "-2.1°C" },
-  { name: "NAIA, Pasay City", heatIndex: 41, riskLevel: "Extreme Caution" },
-  { name: "Port Area, Manila City", heatIndex: 39, riskLevel: "Extreme Caution" },
-  { name: "Puerto Princesa, Palawan", heatIndex: 38, riskLevel: "Extreme Caution" },
-  { name: "San Jose, Occidental Mindoro", heatIndex: 45, riskLevel: "Danger" },
-  { name: "Sangley Point, Cavite", heatIndex: 39, riskLevel: "Extreme Caution" },
-  { name: "Science Garden, Quezon City", heatIndex: 41, riskLevel: "Extreme Caution" },
-  { name: "Sinait, Ilocos Sur", heatIndex: 42, riskLevel: "Extreme Caution" },
-  { name: "Tanay, Rizal", heatIndex: 41, riskLevel: "Extreme Caution" },
-  { name: "Tayabas, Quezon", heatIndex: 41, riskLevel: "Extreme Caution" },
-  { name: "Tuguegarao, Cagayan", heatIndex: 41, riskLevel: "Extreme Caution" },
-  { name: "Virac, Catanduanes", heatIndex: 41, riskLevel: "Extreme Caution" }
-];
-
-const synopticData = [
-  { name: "Caution", value: 10, color: "#FFD700" },
-  { name: "Extreme Caution", value: 9, color: "#FFA500" },
-  { name: "Danger", value: 2, color: "#FF4500" },
-  { name: "Extreme Danger", value: 2, color: "#8B0000" },
-];
+interface SummaryData {
+  max: number;
+  max_station: string;
+  min: number;
+  min_station: string;
+  avg: number;
+  danger_count: number;
+  fastest_increasing_station: string;
+  fastest_increasing_trend: number;
+}
 
 const downloadHomeData = async () => {
   try {
-    // Fetch all stations with forecast data from the new endpoint
-    const response = await fetch("http://localhost:4001/api/home-data");
-    if (!response.ok) throw new Error("Failed to fetch home data");
+    // Fetch all stations data
+    const response = await fetch(`${API_BASE_URL}/stations-table`);
+    if (!response.ok) throw new Error(`Failed to fetch home data: ${response.status} ${response.statusText}`);
     const allStations = await response.json();
 
     // Create a temporary container for the table
@@ -92,9 +69,8 @@ const downloadHomeData = async () => {
             <tr style="background-color: #1E40AF; color: white;">
               <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Station</th>
               <th style="border: 1px solid #ddd; padding: 12px; text-align: center;">Current Heat Index</th>
-              <th style="border: 1px solid #ddd; padding: 12px; text-align: center;">Tomorrow Forecast</th>
-              <th style="border: 1px solid #ddd; padding: 12px; text-align: center;">Day After Tomorrow Forecast</th>
               <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Risk Level</th>
+              <th style="border: 1px solid #ddd; padding: 12px; text-align: center;">24h Trend</th>
             </tr>
           </thead>
           <tbody>
@@ -102,15 +78,14 @@ const downloadHomeData = async () => {
 
     // Generate table rows from all stations data
     for (const station of allStations) {
-      const rowColor = station.temp > 52 ? "#FFE5E5" : station.temp >= 42 ? "#FFF0E5" : station.temp >= 33 ? "#FFFBE5" : "#FFFCE5";
+      const rowColor = station.heat_index >= 54 ? "#FFE5E5" : station.heat_index >= 41 ? "#FFF0E5" : station.heat_index >= 33 ? "#FFFBE5" : "#FFFCE5";
       
       tableHTML += `
         <tr style="background-color: ${rowColor};">
           <td style="border: 1px solid #ddd; padding: 12px;">${station.name}</td>
-          <td style="border: 1px solid #ddd; padding: 12px; text-align: center;"><strong>${station.temp}°C</strong></td>
-          <td style="border: 1px solid #ddd; padding: 12px; text-align: center;">${station.tomorrowForecast > 0 ? station.tomorrowForecast + '°C' : 'N/A'}</td>
-          <td style="border: 1px solid #ddd; padding: 12px; text-align: center;">${station.dayAfterTomorrowForecast > 0 ? station.dayAfterTomorrowForecast + '°C' : 'N/A'}</td>
-          <td style="border: 1px solid #ddd; padding: 12px;">${station.riskLevel}</td>
+          <td style="border: 1px solid #ddd; padding: 12px; text-align: center;"><strong>${station.heat_index}°C</strong></td>
+          <td style="border: 1px solid #ddd; padding: 12px;">${station.risk_level}</td>
+          <td style="border: 1px solid #ddd; padding: 12px; text-align: center;">${station.trend || 'N/A'}</td>
         </tr>
       `;
     }
@@ -168,77 +143,107 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
   const [heatIndexPeriod, setHeatIndexPeriod] = useState<"Week" | "Month">("Week");
   const [forecastErrorPeriod, setForecastErrorPeriod] = useState<"Week" | "Month">("Week");
   const [classificationFilter, setClassificationFilter] = useState<string>("");
-
-  const selectedWeek = getWeekOfMonth(selectedDate);
-
-  const getFilteredDataByWeek = (data: any[], week: number) => {
-    const daysPerWeek = 7;
-    const startDay = (week - 1) * daysPerWeek + 1;
-    const endDay = startDay + daysPerWeek - 1;
-    return data.filter((item) => {
-      const day = typeof item.day === "string" ? parseInt(item.day) : item.day;
-      return day >= startDay && day <= endDay;
-    });
-  };
-
-  const filteredAverageHeatIndexData = 
-    heatIndexPeriod === "Week" 
-      ? getFilteredDataByWeek(averageHeatIndexData, selectedWeek)
-      : averageHeatIndexData.slice(0, 31);
   
-  const filteredMeanForecastErrorData = 
-    forecastErrorPeriod === "Week" 
-      ? getFilteredDataByWeek(meanForecastErrorData, selectedWeek)
-      : meanForecastErrorData.slice(0, 31);
+  // State for API data
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
+  const [averageHeatIndexData, setAverageHeatIndexData] = useState<AverageHI[]>([]);
+  const [forecastErrorData, setForecastErrorData] = useState<ForecastError[]>([]);
+  const [stations, setStations] = useState<Station[]>([]);
+  const [synopticData, setSynopticData] = useState<SynopticData[]>([]);
+
+  // Fetch summary data
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/summary?date=${selectedDate}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then(setSummaryData)
+      .catch(err => console.error("Error fetching summary:", err));
+  }, [selectedDate]);
+
+  // Fetch nationwide heat index trend
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/nationwide-trend?range=${heatIndexPeriod}&date=${selectedDate}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then(data => setAverageHeatIndexData(data))
+      .catch(err => console.error("Error fetching heat index trend:", err));
+  }, [heatIndexPeriod, selectedDate]);
+
+  // Fetch forecast error data
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/forecast-error?range=${forecastErrorPeriod}&date=${selectedDate}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then(data => setForecastErrorData(data))
+      .catch(err => console.error("Error fetching forecast error:", err));
+  }, [forecastErrorPeriod, selectedDate]);
+
+  // Fetch stations table data
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/stations-table?date=${selectedDate}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then(data => setStations(data))
+      .catch(err => console.error("Error fetching stations:", err));
+  }, [selectedDate]);
+
+  // Fetch synoptic classification data
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/synoptic-classification?date=${selectedDate}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then(data => setSynopticData(data))
+      .catch(err => console.error("Error fetching synoptic data:", err));
+  }, [selectedDate]);
 
   const filteredStations = classificationFilter
-    ? stations.filter((station) => station.riskLevel.toLowerCase() === classificationFilter.toLowerCase().replace("-", " "))
+    ? stations.filter((station) => station.risk_level.toLowerCase() === classificationFilter.toLowerCase().replace("-", " "))
     : stations;
-
-  const getWeekForDay = (day: number | string): number => {
-    const dayNum = typeof day === "string" ? parseInt(day) : day;
-    // Assuming first day of month is a Monday for calculation
-    return Math.ceil((dayNum + 0) / 7);
-  };
-
-  const formatDayWithWeek = (day: number | string): string => {
-    const dayNum = typeof day === "string" ? parseInt(day) : day;
-    const week = getWeekForDay(dayNum);
-    return `W${week} ${String(dayNum).padStart(2, "0")}`;
-  };
 
   const cards = [
     {
       title: "Highest Forecasted Heat Index",
-      value: "44°C",
-      subtext: "Clark Airport, Pampanga",
+      value: summaryData ? `${summaryData.max}°C` : "--",
+      subtext: summaryData?.max_station || "Across all stations",
     },
     {
       title: "Lowest Forecasted Heat Index",
-      value: "38°C",
-      subtext: "Puerto Princesa, Palawan",
+      value: summaryData ? `${summaryData.min}°C` : "--",
+      subtext: summaryData?.min_station || "Across all stations",
     },
     {
       title: "Average Forecasted Heat Index",
-      value: "41°C",
-      subtext: "+ 1.3° C vs. yesterday",
+      value: summaryData ? `${summaryData.avg}°C` : "--",
+      subtext: "Nationwide average",
     },
     {
       title: "Number of Stations in Danger-Extreme Danger",
-      value: "10",
+      value: summaryData ? `${summaryData.danger_count}` : "--",
       subtext: "stations in Luzon",
     },
     {
       title: "Most Rapidly Increasing Station (in 24 hrs)",
-      value: "+1.2°C",
-      subtext: "Dagupan City, Pangasinan",
+      value: summaryData?.fastest_increasing_trend != null
+        ? `${summaryData.fastest_increasing_trend > 0 ? '+' : ''}${Number(summaryData.fastest_increasing_trend).toFixed(1)}°C` 
+        : "--",
+      subtext: summaryData?.fastest_increasing_station || "Based on 24h trends",
     }
   ];
 
   const columns = [
     { key: "name", label: "Station" },
-    { key: "heatIndex", label: "Heat Index" },
-    { key: "riskLevel", label: "Risk Level" },
+    { key: "heat_index", label: "Heat Index" },
+    { key: "risk_level", label: "Risk Level" },
     { key: "trend", label: "Trend" },
   ];
 
@@ -276,7 +281,7 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
         </div>
         <div className="flex-1 w-full">
           <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={filteredAverageHeatIndexData}>
+            <LineChart data={averageHeatIndexData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="day" />
               <YAxis />
@@ -300,7 +305,7 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
         </div>
         <div className="flex-1 w-full">
           <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={filteredMeanForecastErrorData}>
+            <LineChart data={forecastErrorData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="day" />
               <YAxis />
@@ -343,11 +348,11 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
                       let value = station[col.key as keyof Station];
 
                       if (value === undefined) value = "-";
-                      if (col.key === "heatIndex") value = `${value}°C`;
+                      if (col.key === "heat_index") value = `${value}°C`;
 
-                      if (col.key === "riskLevel") {
+                      if (col.key === "risk_level") {
                         let badgeClass = 'inline-block px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap';
-                        switch (station.riskLevel) {
+                        switch (station.risk_level) {
                           case 'Caution':
                           case 'Extreme Caution':
                             badgeClass += ' bg-[#FEF3C7] text-[#D97706]';
@@ -362,7 +367,7 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
 
                         return (
                           <td key={col.key} className={`p-3 text-sm text-[#1F2937] border-b border-[#E5E7EB] ${colIdx === columns.length - 1 ? '' : 'border-r border-[#E5E7EB]'}`}>
-                            <span className={badgeClass}>{station.riskLevel}</span>
+                            <span className={badgeClass}>{station.risk_level}</span>
                           </td>
                         );
                       }
