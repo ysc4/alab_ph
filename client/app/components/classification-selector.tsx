@@ -9,6 +9,7 @@ const ClassificationSelector: React.FC<ClassificationSelectorProps> = ({ onSelec
     <div className="relative w-50">
       <select
         onChange={(e) => onSelect?.(e.target.value)}
+        defaultValue=""
         className="
           w-full cursor-pointer
           rounded-2xl border-2 border-[#B8BBC2]
@@ -18,12 +19,11 @@ const ClassificationSelector: React.FC<ClassificationSelectorProps> = ({ onSelec
           focus:outline-none focus:border-text-primary
         "
       >
-        <option value="" disabled selected>Classification</option>
-        <option value="caution">Caution</option>
-        <option value="extreme-caution">Extreme Caution</option>
-        <option value="danger">Danger</option>
-        <option value="extreme-danger">Extreme Danger</option>
-
+        <option value="">All Classifications</option>
+        <option value="Caution">Caution</option>
+        <option value="Extreme Caution">Extreme Caution</option>
+        <option value="Danger">Danger</option>
+        <option value="Extreme Danger">Extreme Danger</option>
       </select>
 
       <ChevronDown
