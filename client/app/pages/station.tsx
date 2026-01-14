@@ -342,27 +342,13 @@ const Station: React.FC<{
         <div className="bg-white rounded-xl shadow-sm p-6 xl:col-span-2">
           <div className="flex justify-between mb-3">
             <h1 className="text-2xl font-extrabold">Absolute Forecast Error</h1>
-            <Toggle
-              options={["Week", "Month"]}
-              onSelect={(v) =>
-                setForecastErrorPeriod(v as "Week" | "Month")
-              }
-            />
+            <Toggle options={["Week", "Month"]} onSelect={(selected) => setForecastErrorPeriod(selected as "Week" | "Month")} />
           </div>
           {forecastErrorData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={forecastErrorData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(d) =>
-                    new Date(d).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })
-                  }
-                />
-
+                <XAxis dataKey="day" />
                 <YAxis />
                 <Tooltip />
                 <Legend />
