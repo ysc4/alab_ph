@@ -28,6 +28,8 @@ const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
         type="date"
         value={value || ""}
         onChange={handleDateChange}
+        min="2023-01-01"
+        max="2023-12-31"
         className="
           w-full cursor-pointer
           rounded-2xl border-2 border-[#B8BBC2]
