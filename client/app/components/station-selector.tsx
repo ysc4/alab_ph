@@ -44,7 +44,7 @@ const StationSelector: React.FC<StationSelectorProps> = ({ onSelect }) => {
           focus:outline-none focus:border-text-primary
         "
       >
-        <option value="" disabled selected>Station</option>
+        <option value="">Station</option>
         {stations.map((station) => (
           <option key={station.id} value={station.id}>
             {station.name}
