@@ -208,15 +208,16 @@ router.get('/station/:stationId/metrics', async (req, res) => {
 
     const metricsQuery = `
       SELECT 
-        COALESCE(rmse, 0) as rmse, 
-        COALESCE(mae, 0) as mae, 
-        COALESCE(rsquared, 0) as rsquared, 
-        COALESCE("1day_abs_error", 0) as "1day_abs_error", 
-        COALESCE("2day_abs_error", 0) as "2day_abs_error"
-      FROM model_metrics
-      WHERE station = ${stationId}
-      ${date ? `AND date = '${date}'` : ''}
-      ORDER BY date DESC
+        COALESCE(mm.rmse, 0) as rmse, 
+        COALESCE(mm.mae, 0) as mae, 
+        COALESCE(mm.rsquared, 0) as rsquared, 
+        COALESCE(mhi."1day_abs_error", 0) as "1day_abs_error", 
+        COALESCE(mhi."2day_abs_error", 0) as "2day_abs_error"
+      FROM model_heat_index mhi
+      LEFT JOIN model_metrics mm ON mm.station = mhi.station
+      WHERE mhi.station = ${stationId}
+      ${date ? `AND mhi.date = '${date}'` : ''}
+      ORDER BY mhi.date DESC
       LIMIT 1
     `;
 
@@ -274,7 +275,7 @@ router.get('/station/:stationId/forecast-error', async (req, res) => {
         EXTRACT(DAY FROM date)::integer AS day,
         COALESCE("1day_abs_error", 0) AS t_plus_one,
         COALESCE("2day_abs_error", 0) AS t_plus_two
-      FROM model_metrics
+      FROM model_heat_index
       WHERE station = ${stationId} AND ${dateCondition}
       ORDER BY date ASC
     `);

@@ -164,7 +164,7 @@ router.get("/forecast-error", async (req, res) => {
         EXTRACT(DAY FROM date)::integer AS day,
         ROUND(AVG(COALESCE("1day_abs_error", 0))::numeric, 2) AS t_plus_one,
         ROUND(AVG(COALESCE("2day_abs_error", 0))::numeric, 2) AS t_plus_two
-      FROM model_metrics
+      FROM model_heat_index
       WHERE ${dateCondition}
       GROUP BY DATE(date)
       ORDER BY DATE(date);
