@@ -7,6 +7,7 @@ import { connectDB, closeDB } from "./db";
 import stationDetailsRouter from "./routes/stationDetails";
 import stationsMapRouter from "./routes/stationsMap";
 import homeDataRouter from "./routes/homeData";
+import downloadDataRouter from "./routes/downloadData";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.get("/dashboard", (_req, res) => {
 app.use("/api", stationDetailsRouter);
 app.use("/api", stationsMapRouter);
 app.use("/api", homeDataRouter);
+app.use("/api", downloadDataRouter);
 
 const PORT = process.env.PORT || 4001;
 

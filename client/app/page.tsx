@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "./components/sidebar";
 import Header from "./components/header";
 import Home from "./pages/home";
@@ -13,6 +13,13 @@ export default function Page(): React.ReactNode {
   const [activePage, setActivePage] = useState<PageKey>("Home");
   const [selectedStationId, setSelectedStationId] = useState<number>(1);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const homeRef = useRef<{ downloadData: () => void }>(null);
+
+  const handleDownload = () => {
+    if (homeRef.current) {
+      homeRef.current.downloadData();
+    }
+  };
 
   const pageTitles: Record<PageKey, string> = {
     Home: "Heat Index Overview",
@@ -24,9 +31,16 @@ export default function Page(): React.ReactNode {
     <div className="app-container">
       <Sidebar activePage={activePage} onPageChange={setActivePage} />
       <div className="main-content">
-        <Header title={pageTitles[activePage]} activePage={activePage} selectedDate={selectedDate} onStationSelect={setSelectedStationId} onDateSelect={setSelectedDate} />
+        <Header 
+          title={pageTitles[activePage]} 
+          activePage={activePage} 
+          selectedDate={selectedDate} 
+          onStationSelect={setSelectedStationId} 
+          onDateSelect={setSelectedDate}
+          onDownload={handleDownload}
+        />
         <div className="content-placeholder">
-          {activePage === "Home" && <Home selectedDate={selectedDate} onDateSelect={setSelectedDate} />}
+          {activePage === "Home" && <Home ref={homeRef} selectedDate={selectedDate} onDateSelect={setSelectedDate} />}
           {activePage === "Map" && <Map selectedDate={selectedDate} onDateSelect={setSelectedDate} />}
           {activePage === "Station" && <Station selectedStationId={selectedStationId} selectedDate={selectedDate} onStationSelect={setSelectedStationId} onDateSelect={setSelectedDate} />}
         </div>

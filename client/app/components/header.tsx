@@ -10,9 +10,10 @@ interface HeaderProps {
   selectedDate?: string;
   onStationSelect?: (stationId: number) => void;
   onDateSelect?: (date: string) => void;
+  onDownload?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ title, activePage, selectedDate, onStationSelect, onDateSelect }) => {
+const Header: React.FC<HeaderProps> = ({ title, activePage, selectedDate, onStationSelect, onDateSelect, onDownload }) => {
   return (
     <header className="flex items-center justify-between pt-8">
       <h1 className="text-[36px] font-extrabold text-text-primary">
@@ -21,6 +22,18 @@ const Header: React.FC<HeaderProps> = ({ title, activePage, selectedDate, onStat
       {activePage === "Home" && (
         <div className="flex gap-4">
           <DateSelector value={selectedDate} onSelect={onDateSelect} />
+          <button 
+            className="px-4 py-2 rounded focus:outline-none hover:shadow-lg"
+            style={{ 
+              backgroundColor: '#1666BA', 
+              color: 'white', 
+              fontWeight: '500'
+            }}
+            onClick={onDownload}
+          >
+            Download Data
+          </button>
+          
         </div>
       )}
       {activePage === "Map" && (
