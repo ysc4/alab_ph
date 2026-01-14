@@ -269,7 +269,7 @@ const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate
     {
       title: "Average Forecasted Heat Index",
       value: summaryData ? `${summaryData.avg}°C` : "--",
-      subtext: "Nationwide average",
+      subtext: "Luzon-wide average",
     },
     {
       title: "Number of Stations in Danger-Extreme Danger",
@@ -325,7 +325,7 @@ const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate
     <div className="grid gap-6">
       <div className="p-6 bg-white rounded-xl shadow flex flex-col">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-2xl font-extrabold">Nationwide Heat Index</h2>
+          <h2 className="text-2xl font-extrabold">Luzon-wide Heat Index</h2>
           <Toggle options={["Week", "Month"]} onSelect={(selected) => setHeatIndexPeriod(selected as "Week" | "Month")} />
         </div>
         <div className="flex-1 w-full">
@@ -367,8 +367,8 @@ const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="t_plus_one" stroke="#1E40AF" name="Error (tomorrow)" />
-                <Line type="monotone" dataKey="t_plus_two" stroke="#7AB3EF" name="Error (day after tomorrow)" />
+                <Line type="monotone" dataKey="t_plus_one" stroke="#1E40AF" name="1-Day Ahead Error" />
+                <Line type="monotone" dataKey="t_plus_two" stroke="#7AB3EF" name="2-Day Ahead Error" />
               </LineChart>
             </ResponsiveContainer>
           ) : (
