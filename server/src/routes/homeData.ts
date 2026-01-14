@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getDB } from "../db";
+import { getISOWeekRange } from "../utils/dateFormatter";
 
 const router = Router();
 
@@ -76,33 +77,6 @@ router.get("/summary", async (req, res) => {
   }
 });
 
-router.get("/trend", async (req, res) => {
-  try {
-    const pool = getDB();
-    const { stationId, range } = req.query;
-
-    const isMonth = range === "month";
-
-    const result = await pool.query(
-      `
-      SELECT
-        DATE_TRUNC($1, date) AS date,
-        ROUND(AVG(actual), 2) AS value
-      FROM heat_index
-      WHERE station = $2
-        AND date >= CURRENT_DATE - INTERVAL '${isMonth ? "30 days" : "7 days"}'
-      GROUP BY date
-      ORDER BY date;
-      `,
-      [isMonth ? "day" : "hour", stationId]
-    );
-
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to load trend data" });
-  }
-});
-
 router.get("/stations", async (_req, res) => {
   try {
     const pool = getDB();
@@ -175,15 +149,9 @@ router.get("/forecast-error", async (req, res) => {
         const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
         dateCondition = `date >= '${startOfMonth.toISOString().split('T')[0]}' AND date <= '${endOfMonth.toISOString().split('T')[0]}'`;
       } else {
-        // Show the entire week containing the selected date (Monday to Sunday)
-        const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, ...
-        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Days to subtract to get to Monday
-        const startOfWeek = new Date(selectedDate);
-        startOfWeek.setDate(selectedDate.getDate() - daysToMonday);
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6); // Sunday
-        
-        dateCondition = `date >= '${startOfWeek.toISOString().split('T')[0]}' AND date <= '${endOfWeek.toISOString().split('T')[0]}'`;
+        // Use ISO week calculation
+        const { startDate, endDate } = getISOWeekRange(date as string);
+        dateCondition = `date >= '${startDate}' AND date <= '${endDate}'`;
       }
     } else {
       // Default: use current date and go back
@@ -230,15 +198,9 @@ router.get("/nationwide-trend", async (req, res) => {
         const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
         dateCondition = `date >= '${startOfMonth.toISOString().split('T')[0]}' AND date <= '${endOfMonth.toISOString().split('T')[0]}'`;
       } else {
-        // Show the entire week containing the selected date (Monday to Sunday)
-        const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, ...
-        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Days to subtract to get to Monday
-        const startOfWeek = new Date(selectedDate);
-        startOfWeek.setDate(selectedDate.getDate() - daysToMonday);
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6); // Sunday
-        
-        dateCondition = `date >= '${startOfWeek.toISOString().split('T')[0]}' AND date <= '${endOfWeek.toISOString().split('T')[0]}'`;
+        // Use ISO week calculation
+        const { startDate, endDate } = getISOWeekRange(date as string);
+        dateCondition = `date >= '${startDate}' AND date <= '${endDate}'`;
       }
     } else {
       // Default: use current date and go back

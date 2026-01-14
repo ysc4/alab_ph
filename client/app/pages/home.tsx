@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Bar, BarChart, Cell, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import Toggle from "../components/toggle";
 import ClassificationSelector from "../components/classification-selector";
+import { formatDateShort } from "../utils/dateFormatter";
 
 const API_BASE_URL = "http://localhost:4001/api";
 
@@ -43,103 +44,12 @@ interface SummaryData {
   fastest_increasing_trend: number;
 }
 
-const downloadHomeData = async () => {
-  try {
-    // Fetch all stations data
-    const response = await fetch(`${API_BASE_URL}/stations-table`);
-    if (!response.ok) throw new Error(`Failed to fetch home data: ${response.status} ${response.statusText}`);
-    const allStations = await response.json();
-
-    // Create a temporary container for the table
-    const container = document.createElement("div");
-    container.style.position = "absolute";
-    container.style.left = "-9999px";
-    container.style.width = "1200px";
-    container.style.backgroundColor = "white";
-    container.style.padding = "20px";
-
-    // Create table HTML
-    let tableHTML = `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h1 style="text-align: center; margin-bottom: 20px;">Heat Index Report - All Stations</h1>
-        <p style="text-align: center; margin-bottom: 30px;">Generated on ${new Date().toLocaleDateString()}</p>
-        
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
-          <thead>
-            <tr style="background-color: #1E40AF; color: white;">
-              <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Station</th>
-              <th style="border: 1px solid #ddd; padding: 12px; text-align: center;">Current Heat Index</th>
-              <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Risk Level</th>
-              <th style="border: 1px solid #ddd; padding: 12px; text-align: center;">24h Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    // Generate table rows from all stations data
-    for (const station of allStations) {
-      const rowColor = station.heat_index >= 54 ? "#FFE5E5" : station.heat_index >= 41 ? "#FFF0E5" : station.heat_index >= 33 ? "#FFFBE5" : "#FFFCE5";
-      
-      tableHTML += `
-        <tr style="background-color: ${rowColor};">
-          <td style="border: 1px solid #ddd; padding: 12px;">${station.name}</td>
-          <td style="border: 1px solid #ddd; padding: 12px; text-align: center;"><strong>${station.heat_index}°C</strong></td>
-          <td style="border: 1px solid #ddd; padding: 12px;">${station.risk_level}</td>
-          <td style="border: 1px solid #ddd; padding: 12px; text-align: center;">${station.trend || 'N/A'}</td>
-        </tr>
-      `;
-    }
-
-    tableHTML += `
-          </tbody>
-        </table>
-      </div>
-    `;
-
-    container.innerHTML = tableHTML;
-    document.body.appendChild(container);
-
-    // Convert to canvas and then to PDF
-    const canvas = await html2canvas(container, { scale: 2 });
-    const imgData = canvas.toDataURL("image/png");
-    
-    const pdf = new jsPDF({
-      orientation: "landscape",
-      unit: "mm",
-      format: "a4",
-    });
-
-    const imgWidth = 297; // A4 landscape width in mm
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= 210; // A4 landscape height in mm
-
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= 210;
-    }
-
-    pdf.save(`alab-ph-heat-index-report-${new Date().toISOString().split('T')[0]}.pdf`);
-
-    // Clean up
-    document.body.removeChild(container);
-  } catch (error) {
-    console.error("Error generating PDF:", error);
-    alert("Error generating PDF. Please try again.");
-  }
-};
-
 interface HomeProps {
   selectedDate: string;
   onDateSelect?: (date: string) => void;
 }
 
-const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
+const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate, onDateSelect }, ref) => {
   const [heatIndexPeriod, setHeatIndexPeriod] = useState<"Week" | "Month">("Week");
   const [forecastErrorPeriod, setForecastErrorPeriod] = useState<"Week" | "Month">("Week");
   const [classificationFilter, setClassificationFilter] = useState<string>("");
@@ -150,6 +60,121 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
   const [forecastErrorData, setForecastErrorData] = useState<ForecastError[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [synopticData, setSynopticData] = useState<SynopticData[]>([]);
+
+  // Download function that uses selectedDate from props
+  const downloadHomeData = async () => {
+    try {
+      console.log('Fetching stations data for date:', selectedDate);
+      const response = await fetch(`${API_BASE_URL}/stations-full-data?date=${selectedDate}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch stations data: ${response.status} ${response.statusText}`);
+      }
+
+      const stationsData = await response.json();
+      console.log('Stations data received:', stationsData.length, 'stations');
+
+      // Helper function for coloring based on heat index
+      const getHeatIndexColor = (value: number) => {
+        if (value >= 27) return "#FFC107";       
+        if (value >= 33) return "#FF9800";       
+        if (value >= 42) return "#F44336";       
+        return "#B71C1C";                        
+      };
+
+      // Create hidden container for PDF generation
+      const container = document.createElement("div");
+      container.style.position = "absolute";
+      container.style.left = "-9999px";
+      container.style.width = "1200px";
+      container.style.backgroundColor = "white";
+      container.style.padding = "20px";
+      container.style.fontFamily = "Arial, sans-serif";
+
+      // Build table HTML
+      let tableHTML = `
+        <div style="padding: 20px;">
+          <h1 style="text-align: center; margin-bottom: 10px;">HEAT INDEX FORECAST COMPILATION REPORT</h1>
+          <h3 style="text-align: center; margin-bottom: 5px;">Forecasted Heat Index Values per Synoptic Station</h3>
+          <p style="text-align: center; margin-bottom: 20px;">
+            Coverage: Synoptic Stations in Luzon<br/>
+            Forecast Horizon: T+1 & T+2 Days (where T is Today)<br/>
+            Reporting Period: ${formatDateShort(selectedDate)}
+          </p>
+          <table style="width: 100%; border-collapse: collapse; text-align: center;">
+            <thead>
+              <tr style="background-color: #1E40AF; color: white;">
+                <th style="border: 1px solid #000; padding: 8px;">Station</th>
+                <th style="border: 1px solid #000; padding: 8px;">Forecasted Heat Index (T+1)</th>
+                <th style="border: 1px solid #000; padding: 8px;">Forecasted Heat Index (T+2)</th>
+                <th style="border: 1px solid #000; padding: 8px;">RMSE</th>
+                <th style="border: 1px solid #000; padding: 8px;">MAE</th>
+                <th style="border: 1px solid #000; padding: 8px;">R²</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      stationsData.forEach((station: any) => {
+        tableHTML += `
+          <tr>
+            <td style="border: 1px solid #000; padding: 6px; text-align: left;">${station.name}</td>
+            <td style="border: 1px solid #000; padding: 6px; background-color: ${getHeatIndexColor(station.t_plus_one)};">
+              ${station.t_plus_one}°C
+            </td>
+            <td style="border: 1px solid #000; padding: 6px; background-color: ${getHeatIndexColor(station.t_plus_two)};">
+              ${station.t_plus_two}°C
+            </td>
+            <td style="border: 1px solid #000; padding: 6px;">${station.rmse}</td>
+            <td style="border: 1px solid #000; padding: 6px;">${station.mae}</td>
+            <td style="border: 1px solid #000; padding: 6px;">${station.rsquared}</td>
+          </tr>
+        `;
+      });
+
+      tableHTML += `
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      container.innerHTML = tableHTML;
+      document.body.appendChild(container);
+
+      console.log('Starting PDF generation...');
+
+      const canvas = await html2canvas(container, { scale: 2 });
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+      const imgWidth = 297; // A4 landscape width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= 210;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= 210;
+      }
+
+      pdf.save(`alab-ph-heat-index-report-${selectedDate}.pdf`);
+      console.log('PDF saved successfully');
+
+      document.body.removeChild(container);
+      console.log('Cleanup complete');
+
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert(`Error generating PDF: ${error instanceof Error ? error.message : error}`);
+    }
+  };
+
 
   // Fetch summary data
   useEffect(() => {
@@ -267,7 +292,11 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
     { key: "trend", label: "Trend" },
   ];
 
-  
+  // Expose downloadHomeData function to parent via ref
+  useImperativeHandle(ref, () => ({
+    downloadData: downloadHomeData
+  }));
+
 
   return (
     <div className="w-full h-full py-2">
@@ -300,21 +329,27 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
           <Toggle options={["Week", "Month"]} onSelect={(selected) => setHeatIndexPeriod(selected as "Week" | "Month")} />
         </div>
         <div className="flex-1 w-full">
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={averageHeatIndexData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line
-              type="monotone"
-              dataKey="observed"
-              stroke="#1666BA"
-              name="Observed"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {averageHeatIndexData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={averageHeatIndexData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="day" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line
+                type="monotone"
+                dataKey="observed"
+                stroke="#1666BA"
+                name="Observed"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[400px]">
+              <p className="text-gray-500">No data available for the selected period</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -324,17 +359,23 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
           <Toggle options={["Week", "Month"]} onSelect={(selected) => setForecastErrorPeriod(selected as "Week" | "Month")} />
         </div>
         <div className="flex-1 w-full">
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={forecastErrorData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="t_plus_one" stroke="#1E40AF" name="Error (tomorrow)" />
-              <Line type="monotone" dataKey="t_plus_two" stroke="#7AB3EF" name="Error (day after tomorrow)" />
-            </LineChart>
-          </ResponsiveContainer>
+          {forecastErrorData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={forecastErrorData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="day" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="t_plus_one" stroke="#1E40AF" name="Error (tomorrow)" />
+                <Line type="monotone" dataKey="t_plus_two" stroke="#7AB3EF" name="Error (day after tomorrow)" />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[400px]">
+              <p className="text-gray-500">No data available for the selected period</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -409,6 +450,7 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
 
       <div className="p-6 bg-white rounded-xl shadow flex flex-col h-96">
         <h2 className="text-2xl font-extrabold mb-4">Synoptic Stations</h2>
+        {synopticData.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={synopticData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -423,24 +465,20 @@ const Home: React.FC<HomeProps> = ({ selectedDate, onDateSelect }) => {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-500">No data available</p>
+          </div>
+        )}
       </div>
     </div>
   </div>
 
-  <button
-    onClick={() => downloadHomeData()}
-    title="Download dashboard data"
-    aria-label="Download dashboard data"
-    className="fixed left-2 bottom-6 bg-white rounded-full shadow-lg p-4.5 flex items-center justify-center hover:shadow-xl z-50 md:left-6 lg:left-68.5"
-  >
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-[#1E40AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l4-4m-4 4l-4-4M21 21H3" />
-    </svg>
-  </button>
-
 </div>
 
   );
-};
+});
+
+Home.displayName = 'Home';
 
 export default Home;
