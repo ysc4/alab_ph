@@ -26,7 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="w-65 h-screen bg-white text-primary flex flex-col px-4 py-6 shrink-0">
       <div className="text-center text-4xl font-semibold mb-12">
-        SOLA
+        ALAB-PH
       </div>
 
       <nav className="flex flex-col gap-3">
