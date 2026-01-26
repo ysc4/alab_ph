@@ -21,13 +21,13 @@ interface StationMarkerProps {
 }
 
 const getMarkerColorFromRiskLevel = (riskLevel?: string): string => {
-  if (!riskLevel || riskLevel === 'N/A') return "#FFC107"; // Default yellow for no data
+  if (!riskLevel || riskLevel === 'N/A') return "#9E9E9E"; // Gray for no data
   const level = riskLevel.toLowerCase().trim();
   
   // Match exact classifications from database
   if (level === "extreme danger") return "#B71C1C"; // Dark red
   if (level === "danger") return "#F44336"; // Red
-  if (level === "extreme caution") return "#FF9800"; // Orange
+  if (level === "extreme caution") return "#FB923C"; // Orange
   if (level === "caution") return "#FFC107"; // Amber/Yellow
   
   // Fallback for any unmatched values
@@ -35,18 +35,21 @@ const getMarkerColorFromRiskLevel = (riskLevel?: string): string => {
 };
 
 const getMarkerColor = (temp: number): string => {
+  if (!temp || temp === 0) return "#9E9E9E"; // Gray for no data
   if (temp > 52) return "#B71C1C"; // Extreme Danger
   if (temp >= 42) return "#F44336"; // Danger
-  if (temp >= 33) return "#FF9800"; // Extreme Caution
+  if (temp >= 33) return "#FB923C"; // Extreme Caution
   if (temp >= 27) return "#FFC107"; // Caution
-  return "#9E9E9E"; // Gray for unknown/low risk
+  return "#4CAF50"; // Green for temperatures below caution
 };
 
 const getClassification = (temp: number): string => {
+  if (!temp || temp === 0) return "No Data";
   if (temp > 52) return "Extreme Danger";
   if (temp >= 42) return "Danger";
   if (temp >= 33) return "Extreme Caution";
-  return "Caution";
+  if (temp >= 27) return "Caution";
+  return "Below Caution";
 };
 
 const StationMarker: FC<StationMarkerProps> = ({ id, lat, lng, temp, name, forecasted, modelForecasted, riskLevel, selectedDate, isOpen = false, onOpen, onClose }) => {
@@ -118,7 +121,7 @@ const StationMarker: FC<StationMarkerProps> = ({ id, lat, lng, temp, name, forec
                     className="text-2xl font-bold font-sans"
                     style={{ color: section.color }}
                   >
-                    {section.value}°C
+                    {Number(section.value).toFixed(1)}°C
                   </p>
                 </div>
               ))}

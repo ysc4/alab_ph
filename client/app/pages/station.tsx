@@ -22,6 +22,7 @@ import {
   Megaphone,
 } from "lucide-react";
 import React from "react";
+import { API_BASE_URL, apiGetWithParams } from "../utils/api";
 
 interface TrendData {
   date: string;
@@ -55,31 +56,32 @@ interface ForecastData {
 }
 
 interface ModelMetrics {
-  rmse: number;
-  mae: number;
-  rsquared: number;
+  rmse_1day: number;
+  mae_1day: number;
+  rsquared_1day: number;
+  rmse_2day: number;
+  mae_2day: number;
+  rsquared_2day: number;
   absError1Day: number;
   absError2Day: number;
 }
 
-interface PotentialEffects {
-  risk_level: string;
+interface ClassificationInfo {
+  id: number;
+  level: string;
+  min_temp: string;
+  max_temp: string;
+  effects: string;
+  interventions: string;
   health_risk: string;
-  daily_activities: string;
-  infrastructure_stress: string;
-  environmental_stress: string;
-}
-
-interface RecommendedInterventions {
-  risk_level: string;
+  daily_acts: string;
+  infra_stress: string;
+  env_stress: string;
   public_health: string;
   act_management: string;
   resource_readiness: string;
-  comm_management: string;
+  comm_engagement: string;
 }
-
-
-const API_BASE_URL = "http://localhost:4001/api";
 
 const Station: React.FC<{
   selectedStationId: number;
@@ -97,47 +99,33 @@ const Station: React.FC<{
   const [trendData, setTrendData] = useState<TrendData[]>([]);
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics | null>(null);
   const [forecastErrorData, setForecastErrorData] = useState<ForecastErrorData[]>([]);
-  const [potentialEffects, setPotentialEffects] = useState<PotentialEffects | null>(null);
-  const [recommended, setRecommended] = useState<RecommendedInterventions | null>(null);
+  const [classificationInfo, setClassificationInfo] = useState<ClassificationInfo | null>(null);
 
   const [loading, setLoading] = useState(true);
 
-  // Fetch station info
+  // Fetch station summary (consolidated: info + forecasts + metrics)
   useEffect(() => {
-    const fetchStationInfo = async () => {
+    const fetchStationSummary = async () => {
       try {
         const response = await fetch(
-          `${API_BASE_URL}/station/${selectedStationId}/info?date=${selectedDate}`
+          `${API_BASE_URL}/station/${selectedStationId}/summary?date=${selectedDate}`
         );
-        if (!response.ok) throw new Error("Failed to fetch station info");
+        if (!response.ok) throw new Error("Failed to fetch station summary");
         const data = await response.json();
-        setStationInfo(data);
+        setStationInfo({
+          station: data.station,
+          currentData: data.currentData
+        });
+        setForecasts(data.forecasts);
+        setModelMetrics(data.metrics);
       } catch (error) {
-        console.error("Error fetching station info:", error);
+        console.error("Error fetching station summary:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchStationInfo();
-  }, [selectedStationId, selectedDate]);
-
-  // Fetch forecasts
-  useEffect(() => {
-    const fetchForecasts = async () => {
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/station/${selectedStationId}/forecasts?date=${selectedDate}`
-        );
-        if (!response.ok) throw new Error("Failed to fetch forecasts");
-        const data = await response.json();
-        setForecasts(data);
-      } catch (error) {
-        console.error("Error fetching forecasts:", error);
-      }
-    };
-
-    fetchForecasts();
+    fetchStationSummary();
   }, [selectedStationId, selectedDate]);
 
   // Fetch trend data
@@ -161,25 +149,6 @@ const Station: React.FC<{
     fetchTrendData();
   }, [selectedStationId, selectedDate, heatIndexTrendPeriod]);
 
-
-  // Fetch model metrics
-  useEffect(() => {
-    const fetchModelMetrics = async () => {
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/station/${selectedStationId}/metrics?date=${selectedDate}`
-        );
-        if (!response.ok) throw new Error("Failed to fetch model metrics");
-        const data = await response.json();
-        setModelMetrics(data);
-      } catch (error) {
-        console.error("Error fetching model metrics:", error);
-      }
-    };
-
-    fetchModelMetrics();
-  }, [selectedStationId, selectedDate]);
-
   // Fetch forecast error data
   useEffect(() => {
     const fetchForecastErrorData = async () => {
@@ -198,6 +167,30 @@ const Station: React.FC<{
     fetchForecastErrorData();
   }, [selectedStationId, selectedDate, forecastErrorPeriod]);
 
+  // Fetch classification info based on station's risk level
+  useEffect(() => {
+    const fetchClassificationInfo = async () => {
+      if (!stationInfo?.currentData?.riskLevel || stationInfo.currentData.riskLevel === 'N/A') {
+        setClassificationInfo(null);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/classification-info/${encodeURIComponent(stationInfo.currentData.riskLevel)}`
+        );
+        if (!response.ok) throw new Error("Failed to fetch classification info");
+        const data = await response.json();
+        setClassificationInfo(data);
+      } catch (error) {
+        console.error("Error fetching classification info:", error);
+        setClassificationInfo(null);
+      }
+    };
+
+    fetchClassificationInfo();
+  }, [stationInfo?.currentData?.riskLevel]);
+
   if (loading) return <div>Loading station data...</div>;
   if (!stationInfo) return <div>No station data available</div>;
 
@@ -206,7 +199,7 @@ const Station: React.FC<{
   const formatTempChange = (tempChange: number) => {
     if (!tempChange || tempChange === 0) return "N/A";
     const sign = tempChange >= 0 ? "+" : "-";
-    return `${sign}${Math.abs(tempChange).toFixed(2)}°C`;
+    return `${sign}${Math.abs(tempChange).toFixed(1)}°C`;
   };
 
   return (
@@ -215,7 +208,7 @@ const Station: React.FC<{
         {[
           { 
             title: "Observed Heat Index", 
-            value: stationInfo.currentData.observedTemp ? `${stationInfo.currentData.observedTemp}°C` : "N/A", 
+            value: stationInfo.currentData.observedTemp ? `${Number(stationInfo.currentData.observedTemp).toFixed(1)}°C` : "N/A", 
             sub: stationInfo.currentData.riskLevel || "N/A" 
           },
           { 
@@ -245,15 +238,28 @@ const Station: React.FC<{
         <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col">
           <h2 className="text-[24px] font-semibold mb-1 text-center">Model Confidence</h2>
           <div className="grid grid-cols-2 gap-8">
-            {["t+1", "t+2"].map((forecast) => (
-              <div key={forecast}>
-                <h3 className="font-semibold text-text-primary mb-0.5 text-center">{forecast}</h3>
+            {[
+              { 
+                label: "t+1", 
+                metrics: [
+                  { label: "RMSE", value: modelMetrics?.rmse_1day || 0 },
+                  { label: "MAE", value: modelMetrics?.mae_1day || 0 },
+                  { label: "R²", value: modelMetrics?.rsquared_1day || 0 },
+                ]
+              },
+              { 
+                label: "t+2", 
+                metrics: [
+                  { label: "RMSE", value: modelMetrics?.rmse_2day || 0 },
+                  { label: "MAE", value: modelMetrics?.mae_2day || 0 },
+                  { label: "R²", value: modelMetrics?.rsquared_2day || 0 },
+                ]
+              },
+            ].map((forecast) => (
+              <div key={forecast.label}>
+                <h3 className="font-semibold text-text-primary mb-0.5 text-center">{forecast.label}</h3>
                 <div className="grid grid-cols-2 gap-y-0.5 text-md">
-                  {[
-                    { label: "RMSE", value: modelMetrics?.rmse || 0 },
-                    { label: "MAE", value: modelMetrics?.mae || 0 },
-                    { label: "R²", value: modelMetrics?.rsquared || 0 },
-                  ].map((metric) => (
+                  {forecast.metrics.map((metric) => (
                     <React.Fragment key={metric.label}>
                       <div className="italic text-text-primary">{metric.label}</div>
                       <div className="font-bold text-primary text-right">{metric.value}</div>
@@ -279,7 +285,7 @@ const Station: React.FC<{
               {formatDate(forecast.date)}
             </div>
             <div className="text-6xl font-bold text-primary mt-3">
-              {forecast.temp ? `${forecast.temp}°C` : "N/A"}
+              {forecast.temp ? `${Number(forecast.temp).toFixed(1)}°C` : "N/A"}
             </div>
           </div>
         ))}
@@ -377,53 +383,53 @@ const Station: React.FC<{
         {[
           {
             title: "Heat Index Potential Effects",
-            data: potentialEffects,
+            data: classificationInfo,
             items: [
               {
                 icon: Heart,
                 title: "Health Risk",
-                value: potentialEffects?.health_risk,
+                value: classificationInfo?.health_risk,
               },
               {
                 icon: Motorbike,
                 title: "Daily Activities",
-                value: potentialEffects?.daily_activities,
+                value: classificationInfo?.daily_acts,
               },
               {
                 icon: Building,
                 title: "Infrastructure Stress",
-                value: potentialEffects?.infrastructure_stress,
+                value: classificationInfo?.infra_stress,
               },
               {
                 icon: Sprout,
                 title: "Environmental Stress",
-                value: potentialEffects?.environmental_stress,
+                value: classificationInfo?.env_stress,
               },
             ],
           },
           {
             title: "Recommended Interventions",
-            data: recommended,
+            data: classificationInfo,
             items: [
               {
                 icon: ShieldCheck,
                 title: "Public Health & Safety",
-                value: recommended?.public_health,
+                value: classificationInfo?.public_health,
               },
               {
                 icon: CalendarDays,
                 title: "Activity & Schedule Management",
-                value: recommended?.act_management,
+                value: classificationInfo?.act_management,
               },
               {
                 icon: Landmark,
                 title: "Infrastructure & Resource Readiness",
-                value: recommended?.resource_readiness,
+                value: classificationInfo?.resource_readiness,
               },
               {
                 icon: Megaphone,
                 title: "Information & Communication Management",
-                value: recommended?.comm_management,
+                value: classificationInfo?.comm_engagement,
               },
             ],
           },
@@ -435,12 +441,6 @@ const Station: React.FC<{
             <h1 className="text-2xl font-extrabold mb-1">
               {section.title}
             </h1>
-
-            {section.data?.risk_level && (
-              <p className="text-sm italic mb-4">
-                Risk Level: {section.data.risk_level}
-              </p>
-            )}
 
             <div className="divide-y border-y">
               {section.items.map((item) => (

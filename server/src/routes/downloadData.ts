@@ -1,6 +1,6 @@
-
 import { Router } from "express";
 import { getDB } from "../db";
+import { roundNumeric } from "../utils/queryHelpers";
 
 const router = Router();
 
@@ -15,11 +15,11 @@ router.get("/stations-full-data", async (req, res) => {
     const query = `
         SELECT 
             s.station AS name,
-            COALESCE(mhi.tomorrow, 0) AS t_plus_one,
-            COALESCE(mhi.day_after_tomorrow, 0) AS t_plus_two,
-            COALESCE(mm.rmse, 0) AS rmse,
-            COALESCE(mm.mae, 0) AS mae,
-            COALESCE(mm.rsquared, 0) AS rsquared
+            ${roundNumeric('mhi.tomorrow', 0)} AS t_plus_one,
+            ${roundNumeric('mhi.day_after_tomorrow', 0)} AS t_plus_two,
+            ${roundNumeric('mm.rmse_1day', 0)} AS rmse,
+            ${roundNumeric('mm.mae_1day', 0)} AS mae,
+            ${roundNumeric('mm.rsquared_1day', 0)} AS rsquared
         FROM stations s
         LEFT JOIN model_heat_index mhi
             ON mhi.station = s.id AND mhi.date = $1
@@ -27,7 +27,6 @@ router.get("/stations-full-data", async (req, res) => {
             ON mm.station = s.id
         ORDER BY s.station ASC;
         `;
-
 
     const { rows } = await pool.query(query, [date]);
 

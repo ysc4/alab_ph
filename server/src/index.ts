@@ -8,6 +8,8 @@ import stationDetailsRouter from "./routes/stationDetails";
 import stationsMapRouter from "./routes/stationsMap";
 import homeDataRouter from "./routes/homeData";
 import downloadDataRouter from "./routes/downloadData";
+import generateForecastsRouter from "./routes/generateForecasts";
+import classificationInfoRouter from "./routes/classificationInfo";
 
 dotenv.config();
 
@@ -25,6 +27,8 @@ app.use("/api", stationDetailsRouter);
 app.use("/api", stationsMapRouter);
 app.use("/api", homeDataRouter);
 app.use("/api", downloadDataRouter);
+app.use("/api", generateForecastsRouter);
+app.use("/api", classificationInfoRouter);
 
 const PORT = process.env.PORT || 4001;
 

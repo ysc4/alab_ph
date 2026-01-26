@@ -1,38 +1,181 @@
+/**
+ * GET /api/classification-info/:level
+ * Get effects and interventions for a specific classification level
+ */
+router.get('/classification-info/:level', async (req, res) => {
+  try {
+    const { level } = req.params;
+    const pool = getDB();
+
+    const result = await pool.query(
+      `SELECT 
+        c.id,
+        c.level,
+        c.min_temp,
+        c.max_temp,
+        c.effects,
+        c.interventions,
+        pe.health_risk,
+        pe.daily_acts,
+        pe.infra_stress,
+        pe.env_stress,
+        ri.public_health,
+        ri.act_management,
+        ri.resource_readiness,
+        ri.comm_engagement
+      FROM classification c
+      LEFT JOIN potential_effects pe ON c.id = pe.risk_level
+      LEFT JOIN recommended_interventions ri ON c.id = ri.risk_level
+      WHERE LOWER(c.level) = LOWER($1)
+      LIMIT 1`,
+      [level]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Classification level not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching classification info:', error);
+    res.status(500).json({ error: 'Failed to fetch classification information' });
+  }
+});
+
+/**
+ * GET /api/classification-info
+ * Get all classification levels with effects and interventions
+ */
+router.get('/classification-info', async (req, res) => {
+  try {
+    const pool = getDB();
+    const result = await pool.query(
+      `SELECT 
+        c.id,
+        c.level,
+        c.min_temp,
+        c.max_temp,
+        c.effects,
+        c.interventions,
+        pe.health_risk,
+        pe.daily_acts,
+        pe.infra_stress,
+        pe.env_stress,
+        ri.public_health,
+        ri.act_management,
+        ri.resource_readiness,
+        ri.comm_engagement
+      FROM classification c
+      LEFT JOIN potential_effects pe ON c.id = pe.risk_level
+      LEFT JOIN recommended_interventions ri ON c.id = ri.risk_level
+      ORDER BY CAST(c.min_temp AS NUMERIC)`
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching classification info:', error);
+    res.status(500).json({ error: 'Failed to fetch classification information' });
+  }
+});
 import { Router } from 'express';
 import { getDB } from '../db';
-import { getISOWeekRange } from '../utils/dateFormatter';
+import { getDateRangeCondition, roundNumeric } from '../utils/queryHelpers';
 
 const router = Router();
 
-// Station info and current data
-router.get('/station/:stationId/info', async (req, res) => {
+/**
+ * ============================
+ * STATION SUMMARY DATA (CONSOLIDATED)
+ * Combines info + forecasts + metrics
+ * ============================
+ */
+router.get('/station/:stationId/summary', async (req, res) => {
   try {
     const { stationId } = req.params;
     const { date } = req.query;
     const pool = getDB();
 
-    const stationQuery = `
-      SELECT 
-        s.id,
-        s.station AS name,
-        s.latitude AS lat,
-        s.longitude AS lng,
-        hi.actual AS current_temp,
-        hi.date,
-        COALESCE(c.level, 'N/A') AS risk_level,
-        hi.trend
-      FROM stations s
-      LEFT JOIN heat_index hi
-        ON s.id = hi.station
-        ${date ? `AND hi.date = '${date}'` : ''}
-      LEFT JOIN classification c
-        ON hi.risk_level = c.id AND hi.id IS NOT NULL
-      WHERE s.id = ${stationId}
-      ORDER BY hi.date DESC
-      LIMIT 1
-    `;
-
-    const stationResult = await pool.query(stationQuery);
+    // Fetch all static station data in parallel
+    const [stationResult, rankResult, trendResult, forecastResult, metricsResult, absErrorResult] = await Promise.all([
+      // Station info
+      pool.query(
+        `SELECT 
+          s.id,
+          s.station AS name,
+          s.latitude AS lat,
+          s.longitude AS lng,
+          ROUND(hi.actual::numeric, 1) AS current_temp,
+          hi.date,
+          COALESCE(c.level, 'N/A') AS risk_level,
+          ROUND(hi.trend::numeric, 1) AS trend
+        FROM stations s
+        LEFT JOIN heat_index hi
+          ON s.id = hi.station
+          ${date ? 'AND hi.date = $2' : ''}
+        LEFT JOIN classification c
+          ON hi.actual >= c.min_temp AND hi.actual < CAST(c.max_temp AS NUMERIC) + 1
+        WHERE s.id = $1
+        ORDER BY hi.date DESC
+        LIMIT 1`,
+        date ? [stationId, date] : [stationId]
+      ),
+      // Rank data
+      pool.query(
+        `SELECT hi.actual, hi.station
+        FROM heat_index hi
+        WHERE hi.date = ${date ? '$1' : '(SELECT MAX(date) FROM heat_index)'}
+        ORDER BY hi.actual DESC`,
+        date ? [date] : []
+      ),
+      // Temperature history for trend calculation
+      pool.query(
+        `SELECT actual AS temp
+        FROM heat_index
+        WHERE station = $1
+        ${date ? 'AND date <= $2' : ''}
+        ORDER BY date DESC
+        LIMIT 2`,
+        date ? [stationId, date] : [stationId]
+      ),
+      // Forecasts
+      pool.query(
+        `SELECT
+          date,
+          ROUND(tomorrow::numeric, 1) AS tomorrow,
+          ROUND(day_after_tomorrow::numeric, 1) AS day_after_tomorrow
+        FROM model_heat_index
+        WHERE station = $1
+        ${date ? 'AND date = $2' : ''}
+        ORDER BY date DESC
+        LIMIT 1`,
+        date ? [stationId, date] : [stationId]
+      ),
+      // Model metrics
+      pool.query(
+        `SELECT 
+          ROUND(COALESCE(rmse_1day, 0)::numeric, 1) as rmse_1day,
+          ROUND(COALESCE(mae_1day, 0)::numeric, 1) as mae_1day,
+          ROUND(COALESCE(rsquared_1day, 0)::numeric, 1) as rsquared_1day,
+          ROUND(COALESCE(rmse_2day, 0)::numeric, 1) as rmse_2day,
+          ROUND(COALESCE(mae_2day, 0)::numeric, 1) as mae_2day,
+          ROUND(COALESCE(rsquared_2day, 0)::numeric, 1) as rsquared_2day
+        FROM model_metrics
+        WHERE station = $1`,
+        [stationId]
+      ),
+      // Absolute errors from model_heat_index
+      pool.query(
+        `SELECT
+          ROUND(COALESCE("1day_abs_error", 0)::numeric, 1) as "1day_abs_error",
+          ROUND(COALESCE("2day_abs_error", 0)::numeric, 1) as "2day_abs_error"
+        FROM model_heat_index
+        WHERE station = $1
+        ${date ? 'AND date = $2' : ''}
+        ORDER BY date DESC
+        LIMIT 1`,
+        date ? [stationId, date] : [stationId]
+      )
+    ]);
 
     if (stationResult.rows.length === 0) {
       return res.status(404).json({ error: 'Station not found' });
@@ -40,41 +183,55 @@ router.get('/station/:stationId/info', async (req, res) => {
 
     const station = stationResult.rows[0];
 
-    // Calculate Rank
-    let rankData = { rank: null, totalStations: null };
-    if (date || station.date) {
-      const rankDate = date || station.date;
-      const rankQuery = `
-        SELECT 
-          RANK() OVER (ORDER BY hi.actual DESC) as rank,
-          COUNT(*) OVER () as total_stations
-        FROM heat_index hi
-        WHERE hi.date = '${rankDate}'
-        AND hi.station = ${stationId}
-      `;
-      
-      const rankResult = await pool.query(rankQuery);
-      if (rankResult.rows.length > 0) {
-        rankData = {
-          rank: rankResult.rows[0].rank,
-          totalStations: rankResult.rows[0].total_stations
-        };
-      }
+    // Compute rank
+    let rankData: { rank: number | null, totalStations: number | null } = { rank: null, totalStations: null };
+    if (rankResult.rows.length > 0) {
+      const stationRankIndex = rankResult.rows.findIndex(row => Number(row.station) === Number(stationId));
+      rankData = {
+        rank: stationRankIndex >= 0 ? stationRankIndex + 1 : null,
+        totalStations: rankResult.rows.length
+      };
     }
 
-    // Calculate temp change
-    const trendQuery = `
-      SELECT actual AS temp
-      FROM heat_index
-      WHERE station = ${stationId}
-      ${date ? `AND date <= '${date}'` : ''}
-      ORDER BY date DESC
-      LIMIT 2
-    `;
-
-    const trendResult = await pool.query(trendQuery);
+    // Compute temp change
     const temps = trendResult.rows.map(r => Number(r.temp));
-    const tempChange = temps.length > 1 ? (temps[0] - temps[1]).toFixed(2) : '0';
+    const tempChange = temps.length > 1 ? Number((temps[0] - temps[1]).toFixed(1)) : 0;
+
+    // Process forecasts
+    const forecast = forecastResult.rows[0] || {};
+    // Use the selected date or current date as the base, not the forecast.date
+    const baseDate = date ? new Date(date as string) : new Date();
+    const tomorrow = new Date(baseDate);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dayAfterTomorrow = new Date(baseDate);
+    dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+
+    const forecasts = [
+      {
+        label: 'Tomorrow',
+        date: tomorrow.toISOString().split('T')[0],
+        temp: forecast.tomorrow ?? null,
+      },
+      {
+        label: 'Day After Tomorrow',
+        date: dayAfterTomorrow.toISOString().split('T')[0],
+        temp: forecast.day_after_tomorrow ?? null,
+      },
+    ];
+
+    // Process metrics
+    const metrics = metricsResult.rows[0] || {
+      rmse_1day: 0,
+      mae_1day: 0,
+      rsquared_1day: 0,
+      rmse_2day: 0,
+      mae_2day: 0,
+      rsquared_2day: 0,
+    };
+    const absErrors = absErrorResult.rows[0] || {
+      "1day_abs_error": 0,
+      "2day_abs_error": 0,
+    };
 
     res.json({
       station: {
@@ -85,62 +242,32 @@ router.get('/station/:stationId/info', async (req, res) => {
       },
       currentData: {
         observedTemp: Number(station.current_temp),
-        tempChange: Number(tempChange),
+        tempChange,
         riskLevel: station.risk_level || 'N/A',
         date: station.date,
         rank: rankData.rank,
         totalStations: rankData.totalStations,
       },
+      forecasts,
+      metrics: {
+        rmse_1day: metrics.rmse_1day,
+        mae_1day: metrics.mae_1day,
+        rsquared_1day: metrics.rsquared_1day,
+        rmse_2day: metrics.rmse_2day,
+        mae_2day: metrics.mae_2day,
+        rsquared_2day: metrics.rsquared_2day,
+        absError1Day: absErrors['1day_abs_error'],
+        absError2Day: absErrors['2day_abs_error'],
+      }
     });
 
   } catch (error) {
     console.error('Database error:', error);
-    res.status(500).json({ error: 'Failed to fetch station info' });
+    res.status(500).json({ error: 'Failed to fetch station summary' });
   }
 });
 
-// Station forecasts
-router.get('/station/:stationId/forecasts', async (req, res) => {
-  try {
-    const { stationId } = req.params;
-    const { date } = req.query;
-    const pool = getDB();
-
-    const forecastQuery = `
-      SELECT
-        date,
-        tomorrow,
-        day_after_tomorrow
-      FROM model_heat_index
-      WHERE station = ${stationId}
-      ${date ? `AND date = '${date}'` : ''}
-      ORDER BY date DESC
-      LIMIT 1
-    `;
-
-    const forecastResult = await pool.query(forecastQuery);
-    const forecast = forecastResult.rows[0] || {};
-
-    res.json([
-      {
-        label: 'Tomorrow',
-        date: forecast.date,
-        temp: forecast.tomorrow ?? null,
-      },
-      {
-        label: 'Day After Tomorrow',
-        date: forecast.date,
-        temp: forecast.day_after_tomorrow ?? null,
-      },
-    ]);
-
-  } catch (error) {
-    console.error('Database error:', error);
-    res.status(500).json({ error: 'Failed to fetch forecasts' });
-  }
-});
-
-// Station trend data
+// Station trend data (KEEP - has range toggle)
 router.get('/station/:stationId/trend', async (req, res) => {
   try {
     const { stationId } = req.params;
@@ -150,37 +277,30 @@ router.get('/station/:stationId/trend', async (req, res) => {
     let dateCondition = '';
     
     if (date) {
-      if (range === 'Week') {
-        // Get ISO week range using shared logic
-        const { startDate, endDate } = getISOWeekRange(date as string);
-        dateCondition = `AND date >= '${startDate}' AND date <= '${endDate}'`;
-      } else if (range === 'Month') {
-        // Get entire month for the selected date
-        const selectedDate = new Date(date as string);
-        const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-        const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
-        
-        dateCondition = `AND date >= '${startOfMonth.toISOString().split('T')[0]}' AND date <= '${endOfMonth.toISOString().split('T')[0]}'`;
+      if (range === 'Week' || range === 'Month') {
+        dateCondition = `AND ${getDateRangeCondition(date as string, range as string)}`;
       } else {
-        // Default behavior: show up to 31 days before and including selected date
         dateCondition = `AND date <= '${date}'`;
       }
     }
 
+    // Only apply LIMIT when no range is specified
+    const limitClause = (range === 'Week' || range === 'Month') ? '' : 'LIMIT 31';
+    
     const trendQuery = `
       SELECT
         TO_CHAR(date, 'YYYY-MM-DD') as date,
-        actual AS temp,
-        pagasa_forecasted,
-        model_forecasted
+        ${roundNumeric('actual')} AS temp,
+        ${roundNumeric('pagasa_forecasted')} AS pagasa_forecasted,
+        ${roundNumeric('model_forecasted')} AS model_forecasted
       FROM heat_index
-      WHERE station = ${stationId}
+      WHERE station = $1
       ${dateCondition}
       ORDER BY date DESC
-      LIMIT 31
+      ${limitClause}
     `;
 
-    const trendResult = await pool.query(trendQuery);
+    const trendResult = await pool.query(trendQuery, [stationId]);
 
     const result = trendResult.rows
       .map(row => ({
@@ -199,52 +319,8 @@ router.get('/station/:stationId/trend', async (req, res) => {
   }
 });
 
-// Station model metrics
-router.get('/station/:stationId/metrics', async (req, res) => {
-  try {
-    const { stationId } = req.params;
-    const { date } = req.query;
-    const pool = getDB();
 
-    const metricsQuery = `
-      SELECT 
-        COALESCE(mm.rmse, 0) as rmse, 
-        COALESCE(mm.mae, 0) as mae, 
-        COALESCE(mm.rsquared, 0) as rsquared, 
-        COALESCE(mhi."1day_abs_error", 0) as "1day_abs_error", 
-        COALESCE(mhi."2day_abs_error", 0) as "2day_abs_error"
-      FROM model_heat_index mhi
-      LEFT JOIN model_metrics mm ON mm.station = mhi.station
-      WHERE mhi.station = ${stationId}
-      ${date ? `AND mhi.date = '${date}'` : ''}
-      ORDER BY mhi.date DESC
-      LIMIT 1
-    `;
-
-    const metricsResult = await pool.query(metricsQuery);
-    const metrics = metricsResult.rows[0] || {
-      rmse: 0,
-      mae: 0,
-      rsquared: 0,
-      "1day_abs_error": 0,
-      "2day_abs_error": 0,
-    };
-
-    res.json({
-      rmse: metrics.rmse,
-      mae: metrics.mae,
-      rsquared: metrics.rsquared,
-      absError1Day: metrics['1day_abs_error'],
-      absError2Day: metrics['2day_abs_error'],
-    });
-
-  } catch (error) {
-    console.error('Database error:', error);
-    res.status(500).json({ error: 'Failed to fetch model metrics' });
-  }
-});
-
-// Station-specific forecast error trend
+// Station-specific forecast error trend (KEEP - has range toggle)
 router.get('/station/:stationId/forecast-error', async (req, res) => {
   try {
     const { stationId } = req.params;
@@ -252,33 +328,18 @@ router.get('/station/:stationId/forecast-error', async (req, res) => {
     const pool = getDB();
     const isMonth = range === 'Month';
 
-    let dateCondition;
-    if (date) {
-      const selectedDate = new Date(date as string);
-      
-      if (isMonth) {
-        const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-        const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
-        dateCondition = `date >= '${startOfMonth.toISOString().split('T')[0]}' AND date <= '${endOfMonth.toISOString().split('T')[0]}'`;
-      } else {
-        // Get ISO week range using shared logic
-        const { startDate, endDate } = getISOWeekRange(date as string);
-        dateCondition = `date >= '${startDate}' AND date <= '${endDate}'`;
-      }
-    } else {
-      const days = isMonth ? 31 : 7;
-      dateCondition = `date >= CURRENT_DATE - INTERVAL '${days} days'`;
-    }
+    const dateCondition = getDateRangeCondition(date as string, range as string);
 
-    const result = await pool.query(`
-      SELECT
+    const result = await pool.query(
+      `SELECT
         EXTRACT(DAY FROM date)::integer AS day,
         COALESCE("1day_abs_error", 0) AS t_plus_one,
         COALESCE("2day_abs_error", 0) AS t_plus_two
       FROM model_heat_index
-      WHERE station = ${stationId} AND ${dateCondition}
-      ORDER BY date ASC
-    `);
+      WHERE station = $1 AND ${dateCondition}
+      ORDER BY date ASC`,
+      [stationId]
+    );
 
     res.json(result.rows);
   } catch (error) {
@@ -286,80 +347,5 @@ router.get('/station/:stationId/forecast-error', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch forecast error data' });
   }
 });
-
-router.get("/station/:stationId/potential-effects", async (req, res) => {
-  const { stationId } = req.params;
-  const { date } = req.query;
-
-  try {
-    const pool = getDB();
-    const query = `
-      SELECT
-        c.name AS risk_level,
-        pe.health_risk,
-        pe.daily_activities,
-        pe.infrastructure_stress,
-        pe.environmental_stress
-      FROM heat_index hi
-      JOIN classifications c
-        ON hi.risk_level = c.id
-      JOIN potential_effects pe
-        ON pe.risk_level = c.id
-      WHERE hi.station = $1
-        AND hi.date = $2
-      LIMIT 1;
-    `;
-
-    const { rows } = await pool.query(query, [stationId, date]);
-
-    if (rows.length === 0) {
-      return res.json(null);
-    }
-
-    res.json(rows[0]);
-  } catch (error) {
-    console.error("Potential effects error:", error);
-    res.status(500).json({ error: "Failed to fetch potential effects" });
-  }
-});
-
-router.get("/station/:stationId/recommended-interventions", async (req, res) => {
-  const { stationId } = req.params;
-  const { date } = req.query;
-
-  try {
-    const pool = getDB();
-    const query = `
-      SELECT
-        c.name AS risk_level,
-        ri.public_health,
-        ri.act_management,
-        ri.resource_readiness,
-        ri.comm_management
-      FROM heat_index hi
-      JOIN classifications c
-        ON hi.risk_level = c.id
-      JOIN recommended_interventions ri
-        ON ri.risk_level = c.id
-      WHERE hi.station = $1
-        AND hi.date = $2
-      LIMIT 1;
-    `;
-
-    const { rows } = await pool.query(query, [stationId, date]);
-
-    if (rows.length === 0) {
-      return res.json(null);
-    }
-
-    res.json(rows[0]);
-  } catch (error) {
-    console.error("Recommended interventions error:", error);
-    res.status(500).json({ error: "Failed to fetch recommended interventions" });
-  }
-});
-
-
-
 
 export default router;

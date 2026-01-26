@@ -2,9 +2,10 @@ import { ChevronDown } from "lucide-react";
 
 interface StationSelectorProps {
   onSelect?: (stationId: number) => void;
+  selectedStationId?: number;
 }
 
-const StationSelector: React.FC<StationSelectorProps> = ({ onSelect }) => {
+const StationSelector: React.FC<StationSelectorProps> = ({ onSelect, selectedStationId }) => {
   const stations = [
     { id: 1, name: "Ambulong" },
     { id: 2, name: "Baguio City" },
@@ -34,6 +35,7 @@ const StationSelector: React.FC<StationSelectorProps> = ({ onSelect }) => {
   return (
     <div className="relative w-50">
       <select
+        value={selectedStationId || ""}
         onChange={(e) => onSelect?.(parseInt(e.target.value))}
         className="
           w-full cursor-pointer

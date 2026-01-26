@@ -1,0 +1,7 @@
+# Place your CSV files here
+
+Expected files:
+- model_heat_index.csv
+- pagasa_heat_index.csv
+- heat_index.csv
+- model_metrics.csv

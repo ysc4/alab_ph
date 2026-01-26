@@ -8,12 +8,14 @@ interface HeaderProps {
   title: string;
   activePage?: PageKey;
   selectedDate?: string;
+  selectedStationId?: number;
   onStationSelect?: (stationId: number) => void;
   onDateSelect?: (date: string) => void;
   onDownload?: () => void;
+  onGenerateData?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ title, activePage, selectedDate, onStationSelect, onDateSelect, onDownload }) => {
+const Header: React.FC<HeaderProps> = ({ title, activePage, selectedDate, selectedStationId, onStationSelect, onDateSelect, onDownload, onGenerateData }) => {
   return (
     <header className="flex items-center justify-between pt-8">
       <h1 className="text-[36px] font-extrabold text-text-primary">
@@ -21,6 +23,17 @@ const Header: React.FC<HeaderProps> = ({ title, activePage, selectedDate, onStat
       </h1>
       {activePage === "Home" && (
         <div className="flex gap-4">
+          <button 
+            className="px-4 py-2 rounded-2xl focus:outline-none hover:shadow-lg"
+            style={{ 
+              backgroundColor: '#10B981', 
+              color: 'white', 
+              fontWeight: '500'
+            }}
+            onClick={onGenerateData}
+          >
+            Generate Data
+          </button>
           <button 
             className="px-4 py-2 rounded-2xl focus:outline-none hover:shadow-lg"
             style={{ 
@@ -43,7 +56,7 @@ const Header: React.FC<HeaderProps> = ({ title, activePage, selectedDate, onStat
       {activePage === "Station" && (
         <div className="flex gap-4">
           <DateSelector value={selectedDate} onSelect={onDateSelect} />
-          <StationSelector onSelect={onStationSelect} />
+          <StationSelector selectedStationId={selectedStationId} onSelect={onStationSelect} />
         </div>
       )}
     </header>

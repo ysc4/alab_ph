@@ -5,8 +5,7 @@ import html2canvas from "html2canvas";
 import Toggle from "../components/toggle";
 import ClassificationSelector from "../components/classification-selector";
 import { formatDateShort } from "../utils/dateFormatter";
-
-const API_BASE_URL = "http://localhost:4001/api";
+import { API_BASE_URL } from "../utils/api";
 
 // Types
 type Station = {
@@ -49,10 +48,11 @@ interface HomeProps {
   onDateSelect?: (date: string) => void;
 }
 
-const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate, onDateSelect }, ref) => {
+const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, HomeProps>(({ selectedDate, onDateSelect }, ref) => {
   const [heatIndexPeriod, setHeatIndexPeriod] = useState<"Week" | "Month">("Week");
   const [forecastErrorPeriod, setForecastErrorPeriod] = useState<"Week" | "Month">("Week");
   const [classificationFilter, setClassificationFilter] = useState<string>("");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // State for API data
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
@@ -60,6 +60,12 @@ const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate
   const [forecastErrorData, setForecastErrorData] = useState<ForecastError[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [synopticData, setSynopticData] = useState<SynopticData[]>([]);
+
+  // Refresh function to refetch all data
+  const refreshData = () => {
+    console.log('Refreshing all data...');
+    setRefreshTrigger(prev => prev + 1);
+  };
 
   // Download function that uses selectedDate from props
   const downloadHomeData = async () => {
@@ -175,21 +181,30 @@ const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate
     }
   };
 
+  // Expose both download and refresh functions to parent
+  useImperativeHandle(ref, () => ({
+    downloadData: downloadHomeData,
+    refreshData: refreshData
+  }));
 
-  // Fetch summary data
+
+  // Fetch home summary data (consolidated: summary + synoptic)
   useEffect(() => {
-    fetch(`${API_BASE_URL}/summary?date=${selectedDate}`)
+    fetch(`${API_BASE_URL}/home-summary?date=${selectedDate}`)
       .then(async res => {
         if (!res.ok) {
           const text = await res.text();
-          console.error('Summary response error:', text);
+          console.error('Home summary response error:', text);
           throw new Error(`HTTP error! status: ${res.status}`);
         }
         return res.json();
       })
-      .then(data => setSummaryData(data))
-      .catch(err => console.error("Error fetching summary:", err));
-  }, [selectedDate]);
+      .then(data => {
+        setSummaryData(data.summary);
+        setSynopticData(data.synoptic);
+      })
+      .catch(err => console.error("Error fetching home summary:", err));
+  }, [selectedDate, refreshTrigger]);
 
   // Fetch nationwide heat index trend
   useEffect(() => {
@@ -204,7 +219,7 @@ const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate
       })
       .then(data => setAverageHeatIndexData(data))
       .catch(err => console.error("Error fetching heat index trend:", err));
-  }, [heatIndexPeriod, selectedDate]);
+  }, [heatIndexPeriod, selectedDate, refreshTrigger]);
 
   // Fetch forecast error data
   useEffect(() => {
@@ -219,7 +234,7 @@ const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate
       })
       .then(data => setForecastErrorData(data))
       .catch(err => console.error("Error fetching forecast error:", err));
-  }, [forecastErrorPeriod, selectedDate]);
+  }, [forecastErrorPeriod, selectedDate, refreshTrigger]);
 
   // Fetch stations table data
   useEffect(() => {
@@ -234,22 +249,7 @@ const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate
       })
       .then(data => setStations(data))
       .catch(err => console.error("Error fetching stations:", err));
-  }, [selectedDate]);
-
-  // Fetch synoptic classification data
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/synoptic-classification?date=${selectedDate}`)
-      .then(async res => {
-        if (!res.ok) {
-          const text = await res.text();
-          console.error('Synoptic response error:', text);
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then(data => setSynopticData(data))
-      .catch(err => console.error("Error fetching synoptic data:", err));
-  }, [selectedDate]);
+  }, [selectedDate, refreshTrigger]);
 
   const filteredStations = classificationFilter
     ? stations.filter((station) => station.risk_level.toLowerCase() === classificationFilter.toLowerCase().replace("-", " "))
@@ -291,12 +291,6 @@ const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate
     { key: "risk_level", label: "Risk Level" },
     { key: "trend", label: "Trend" },
   ];
-
-  // Expose downloadHomeData function to parent via ref
-  useImperativeHandle(ref, () => ({
-    downloadData: downloadHomeData
-  }));
-
 
   return (
     <div className="w-full h-full py-2">
@@ -403,8 +397,8 @@ const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate
                 </tr>
               </thead>
               <tbody>
-                {filteredStations.map((station) => (
-                  <tr key={station.name} className="hover:bg-[#F9FAFB]">
+                {filteredStations.map((station, index) => (
+                  <tr key={`station-${index}-${station.name}`} className="hover:bg-[#F9FAFB]">
                     {columns.map((col, colIdx) => {
                       let value = station[col.key as keyof Station];
 
@@ -413,17 +407,30 @@ const Home = forwardRef<{ downloadData: () => void }, HomeProps>(({ selectedDate
 
                       if (col.key === "risk_level") {
                         let badgeClass = 'inline-block px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap';
-                        switch (station.risk_level) {
-                          case 'Caution':
-                          case 'Extreme Caution':
-                            badgeClass += ' bg-[#FEF3C7] text-[#D97706]';
-                            break;
-                          case 'Danger':
-                            badgeClass += ' bg-[#FEE2E2] text-[#DC2626]';
-                            break;
-                          case 'Extreme Danger':
-                            badgeClass += ' bg-[#FEE2E2] text-[#B71C1C]';
-                            break;
+                        
+                        // Handle values below Caution threshold (< 27°C)
+                        if (station.heat_index && parseFloat(station.heat_index.toString()) < 27) {
+                          badgeClass += ' bg-[#E8F5E9] text-[#4CAF50]'; // Green for below caution
+                        } else if (!station.risk_level || station.heat_index === 0 || !station.heat_index) {
+                          badgeClass += ' bg-[#F5F5F5] text-[#616161]'; // Gray for no data
+                        } else {
+                          switch (station.risk_level) {
+                            case 'Caution':
+                              badgeClass += ' bg-[#FFFDE7] text-[#FFC107]';
+                              break;
+                            case 'Extreme Caution':
+                              badgeClass += ' bg-[#FFE0B2] text-[#FB923C]';
+                              break;
+                            case 'Danger':
+                              badgeClass += ' bg-[#FFEBEE] text-[#F44336]';
+                              break;
+                            case 'Extreme Danger':
+                              badgeClass += ' bg-[#FFCDD2] text-[#B71C1C]';
+                              break;
+                            default:
+                              badgeClass += ' bg-[#F5F5F5] text-[#616161]';
+                              break;
+                          }
                         }
 
                         return (

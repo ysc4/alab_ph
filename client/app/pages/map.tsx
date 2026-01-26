@@ -35,10 +35,11 @@ interface StationDetailData {
 }
 
 const getTemperatureWeight = (temp: number): number => {
-  // Map temperature ranges to gradient (27°C = 0, 53°C = 1)
-  // Caution: 27-32°C, Extreme Caution: 33-41°C, Danger: 42-51°C, Extreme Danger: 52°C+
-  const minTemp = 27;
-  const maxTemp = 53;
+  // Map temperature to weight starting from Caution level (27°C)
+  // Caution: 27-32°C (0-0.2), Extreme Caution: 33-41°C (0.2-0.5)
+  // Danger: 42-51°C (0.5-0.8), Extreme Danger: 52°C+ (0.8-1.0)
+  const minTemp = 27; // Start from Caution threshold
+  const maxTemp = 55; // Max at 55°C for extreme danger
   const weight = (temp - minTemp) / (maxTemp - minTemp);
   return Math.max(0, Math.min(1, weight));
 };
@@ -51,7 +52,7 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
 
   const [heatmapData, setHeatmapData] = useState<google.maps.visualization.WeightedLocation[]>([]);
   const [stationPoints, setStationPoints] = useState<StationData[]>([]);
-  const [openMarker, setOpenMarker] = useState<string | null>(null);
+  const [openMarker, setOpenMarker] = useState<number | null>(null);
   const [stationDetails, setStationDetails] = useState<StationDetailData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -91,7 +92,7 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
       if (!response.ok) throw new Error("Failed to fetch station details");
       const data = await response.json();
       setStationDetails(data);
-      setOpenMarker(data.name);
+      setOpenMarker(data.id);
     } catch (error) {
       console.error("Error fetching station details:", error);
     }
@@ -101,7 +102,7 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
     if (!isLoaded || stationPoints.length === 0) return;
 
     const points = stationPoints
-      .filter((p) => p.temp > 0) // Only include stations with valid temperature data
+      .filter((p) => p.temp >= 27) // Only include stations with Caution level or above (>= 27°C)
       .map((p) => ({
         location: new google.maps.LatLng(p.lat, p.lng),
         weight: getTemperatureWeight(p.temp),
@@ -143,20 +144,28 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
         </h3>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#FFC107", border: "2px solid white" }}></div>
-            <span style={{ fontSize: "12px", color: "#666" }}>Caution</span>
+            <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#4CAF50", border: "2px solid white" }}></div>
+            <span style={{ fontSize: "12px", color: "#666" }}>Below Caution (&lt;27°C)</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#FF9800", border: "2px solid white" }}></div>
-            <span style={{ fontSize: "12px", color: "#666" }}>Extreme Caution</span>
+            <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#FFC107", border: "2px solid white" }}></div>
+            <span style={{ fontSize: "12px", color: "#666" }}>Caution (27-32°C)</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#FB923C", border: "2px solid white" }}></div>
+            <span style={{ fontSize: "12px", color: "#666" }}>Extreme Caution (33-41°C)</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#F44336", border: "2px solid white" }}></div>
-            <span style={{ fontSize: "12px", color: "#666" }}>Danger</span>
+            <span style={{ fontSize: "12px", color: "#666" }}>Danger (42-51°C)</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#B71C1C", border: "2px solid white" }}></div>
-            <span style={{ fontSize: "12px", color: "#666" }}>Extreme Danger</span>
+            <span style={{ fontSize: "12px", color: "#666" }}>Extreme Danger (52°C+)</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#9E9E9E", border: "2px solid white" }}></div>
+            <span style={{ fontSize: "12px", color: "#666" }}>No Data</span>
           </div>
         </div>
       </div>
@@ -172,27 +181,27 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
             options={{
               radius: 50,
               opacity: 0.8,
+              dissipating: true,
               gradient: [
-                "rgba(255, 255, 255, 0)",      // Transparent
+                "rgba(255, 255, 255, 0)",      // Transparent (outermost)
                 "rgba(255, 193, 7, 0.3)",      // Caution - Yellow (start)
-                "rgba(255, 193, 7, 0.5)",      // Caution - Yellow
-                "rgba(255, 193, 7, 0.7)",      // Caution - Yellow
-                "rgba(255, 152, 0, 0.7)",      // Extreme Caution - Orange (transition)
-                "rgba(255, 152, 0, 0.9)",      // Extreme Caution - Orange
-                "rgba(255, 152, 0, 1)",        // Extreme Caution - Orange
-                "rgba(244, 67, 54, 0.8)",      // Danger - Red (transition)
+                "rgba(255, 193, 7, 0.6)",      // Caution - Yellow
+                "rgba(255, 193, 7, 0.8)",      // Caution - Yellow
+                "rgba(251, 146, 60, 0.6)",      // Extreme Caution - Orange
+                "rgba(251, 146, 60, 0.8)",      // Extreme Caution - Orange
+                "rgba(251, 146, 60, 1)",        // Extreme Caution - Orange
+                "rgba(244, 67, 54, 0.7)",      // Danger - Red
+                "rgba(244, 67, 54, 0.9)",      // Danger - Red
                 "rgba(244, 67, 54, 1)",        // Danger - Red
-                "rgba(244, 67, 54, 1)",        // Danger - Red
-                "rgba(183, 28, 28, 0.9)",      // Extreme Danger - Dark Red (transition)
-                "rgba(183, 28, 28, 1)",        // Extreme Danger - Dark Red
-                "rgba(183, 28, 28, 1)",        // Extreme Danger - Dark Red
+                "rgba(183, 28, 28, 0.9)",      // Extreme Danger - Dark Red
+                "rgba(183, 28, 28, 1)",        // Extreme Danger - Dark Red (high intensity)
               ],
             }}
           />
         )}
         {stationPoints.map((point) => (
           <StationMarker
-            key={point.name}
+            key={point.id}
             id={point.id}
             lat={point.lat}
             lng={point.lng}
@@ -202,7 +211,7 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
             modelForecasted={point.modelForecasted}
             riskLevel={point.risk_level}
             selectedDate={selectedDate}
-            isOpen={openMarker === point.name}
+            isOpen={openMarker === point.id}
             onOpen={() => handleStationMarkerClick(point.id)}
             onClose={() => setOpenMarker(null)}
           />
