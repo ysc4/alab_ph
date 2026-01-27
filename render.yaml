@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: alab-ph-server
+    env: node
+    buildCommand: "cd server && bash build.sh"
+    startCommand: "cd server && npm start"
+    envVars:
+      - key: NODE_ENV
+        value: production
