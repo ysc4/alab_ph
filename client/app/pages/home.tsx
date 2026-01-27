@@ -43,8 +43,6 @@ interface SummaryData {
   fastest_increasing_trend: number;
   avg_model_forecasted: number;
   avg_pagasa_forecasted: number;
-  avg_1day_abs_error: number;
-  avg_2day_abs_error: number;
 }
 
 interface HomeProps {
@@ -60,7 +58,6 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
   
   // State for API data
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
-  const [averageHeatIndexData, setAverageHeatIndexData] = useState<AverageHI[]>([]);
   const [forecastErrorData, setForecastErrorData] = useState<ForecastError[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [synopticData, setSynopticData] = useState<SynopticData[]>([]);
@@ -218,7 +215,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
       .catch(err => console.error("Error fetching home summary:", err));
   }, [selectedDate, refreshTrigger]);
 
-  
+
   // Fetch forecast error data
   useEffect(() => {
     fetch(`${API_BASE_URL}/forecast-error?range=${forecastErrorPeriod}&date=${selectedDate}`)

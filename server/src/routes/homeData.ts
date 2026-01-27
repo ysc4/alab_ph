@@ -179,19 +179,19 @@ router.get("/stations-table", async (req, res) => {
   try {
     const pool = getDB();
     const { date, limit = "100", offset = "0" } = req.query;
-    
+
     const query = `
       SELECT
         s.station AS name,
         ROUND(mh.tomorrow::numeric, 1) AS heat_index,
         COALESCE(c.level, 'N/A') AS risk_level,
-        ROUND(h.trend::numeric, 1) AS trend
+        ROUND(ht.trend::numeric, 1) AS trend
       FROM model_heat_index mh
       JOIN stations s
         ON s.id = mh.station
-      LEFT JOIN heat_index h
-        ON h.station = mh.station
-      AND h.date = mh.date
+      LEFT JOIN heat_index ht
+        ON ht.station = mh.station
+      AND ht.date = mh.date + INTERVAL '1 day'
       LEFT JOIN classification c
         ON mh.tomorrow >= c.min_temp
       AND mh.tomorrow < CAST(c.max_temp AS NUMERIC) + 1
