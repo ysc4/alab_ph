@@ -15,6 +15,8 @@ router.get("/stations-full-data", async (req, res) => {
     const query = `
         SELECT 
             s.station AS name,
+            s.latitude,
+            s.longitude,
             ${roundNumeric('mhi.tomorrow', 0)} AS t_plus_one,
             ${roundNumeric('mhi.day_after_tomorrow', 0)} AS t_plus_two,
             ${roundNumeric('mm.rmse_1day', 0)} AS rmse,
