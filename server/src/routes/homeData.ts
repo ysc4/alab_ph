@@ -27,7 +27,7 @@ router.get("/home-summary", async (req, res) => {
           SELECT DISTINCT ON (mh.station)
             mh.station,
             s.station AS station_name,
-            mh.tomorrow AS forecasted,
+            ROUND((mh.tomorrow)::numeric, 2) AS forecasted,
             COALESCE(h.trend, 0) AS trend
           FROM model_heat_index mh
           JOIN stations s ON s.id = mh.station
