@@ -373,7 +373,7 @@ const Station: React.FC<{
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[300px]">
+            <div className="flex items-center justify-center h-75">
               <p className="text-gray-500">No data available for the selected period</p>
             </div>
           )}
