@@ -192,7 +192,34 @@ const Station: React.FC<{
   }, [stationInfo?.currentData?.riskLevel]);
 
   if (loading) return <div>Loading station data...</div>;
-  if (!stationInfo) return <div>No station data available</div>;
+
+  // Provide default values if no station data is available
+  const safeStationInfo: StationInfo = stationInfo || {
+    station: { id: selectedStationId, name: "N/A", lat: 0, lng: 0 },
+    currentData: {
+      observedTemp: 0,
+      tempChange: 0,
+      riskLevel: "N/A",
+      date: selectedDate,
+      rank: null,
+      totalStations: null,
+    },
+  };
+  const safeForecasts: ForecastData[] = forecasts.length > 0 ? forecasts : [
+    { label: "Tomorrow", date: selectedDate, temp: null },
+    { label: "Day After Tomorrow", date: selectedDate, temp: null },
+  ];
+  const safeModelMetrics: ModelMetrics = modelMetrics || {
+    rmse_1day: 0,
+    mae_1day: 0,
+    rsquared_1day: 0,
+    rmse_2day: 0,
+    mae_2day: 0,
+    rsquared_2day: 0,
+    absError1Day: 0,
+    absError2Day: 0,
+  };
+  const safeClassificationInfo: ClassificationInfo | null = classificationInfo || null;
 
   const heatIndexTrendData = trendData;
 
@@ -208,17 +235,17 @@ const Station: React.FC<{
         {[
           { 
             title: "Observed Heat Index", 
-            value: stationInfo.currentData.observedTemp ? `${Number(stationInfo.currentData.observedTemp).toFixed(1)}°C` : "N/A", 
-            sub: stationInfo.currentData.riskLevel || "N/A" 
+            value: safeStationInfo.currentData.observedTemp ? `${Number(safeStationInfo.currentData.observedTemp).toFixed(1)}°C` : "N/A", 
+            sub: safeStationInfo.currentData.riskLevel || "N/A" 
           },
           { 
             title: "Heat Index Change", 
-            value: formatTempChange(stationInfo.currentData.tempChange), 
+            value: formatTempChange(safeStationInfo.currentData.tempChange), 
             sub: "vs. yesterday" 
           },
           { 
             title: "Station Risk Rank", 
-            value: stationInfo.currentData.rank ? `#${stationInfo.currentData.rank}/23` : "N/A", 
+            value: safeStationInfo.currentData.rank ? `#${safeStationInfo.currentData.rank}/23` : "N/A", 
             sub: `stations in Luzon` 
           }].map((item) => (
           <div
@@ -242,17 +269,17 @@ const Station: React.FC<{
               { 
                 label: "t+1", 
                 metrics: [
-                  { label: "RMSE", value: modelMetrics?.rmse_1day || 0 },
-                  { label: "MAE", value: modelMetrics?.mae_1day || 0 },
-                  { label: "R²", value: modelMetrics?.rsquared_1day || 0 },
+                  { label: "RMSE", value: safeModelMetrics.rmse_1day },
+                  { label: "MAE", value: safeModelMetrics.mae_1day },
+                  { label: "R²", value: safeModelMetrics.rsquared_1day },
                 ]
               },
               { 
                 label: "t+2", 
                 metrics: [
-                  { label: "RMSE", value: modelMetrics?.rmse_2day || 0 },
-                  { label: "MAE", value: modelMetrics?.mae_2day || 0 },
-                  { label: "R²", value: modelMetrics?.rsquared_2day || 0 },
+                  { label: "RMSE", value: safeModelMetrics.rmse_2day },
+                  { label: "MAE", value: safeModelMetrics.mae_2day },
+                  { label: "R²", value: safeModelMetrics.rsquared_2day },
                 ]
               },
             ].map((forecast) => (
@@ -273,7 +300,7 @@ const Station: React.FC<{
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-5 mt-5 mb-5">
-        {forecasts.map((forecast, index) => (
+        {safeForecasts.map((forecast, index) => (
           <div
             key={index}
             className="bg-white rounded-xl shadow-sm p-6 text-center"
