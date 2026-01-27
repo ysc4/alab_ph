@@ -84,25 +84,13 @@ router.get("/home-summary", async (req, res) => {
 
     if (stations.length > 0) {
       const forecasts = stations.map(s => Number(s.forecasted));
-
-      const max = Math.max(...forecasts);
-      const min = Math.min(...forecasts);
-      const avg =
-        Math.round(
-          (forecasts.reduce((a, b) => a + b, 0) / forecasts.length) * 100
-        ) / 100;
-
-      const danger_count = stations.filter(
-        s => Number(s.forecasted) >= 41
-      ).length;
-
-      const maxStation = stations.find(s => Number(s.forecasted) === max);
-      const minStation = stations.find(s => Number(s.forecasted) === min);
-
-      const fastestStation = stations.reduce((prev, current) =>
-        Number(current.trend) > Number(prev.trend) ? current : prev
-      );
-
+      const max = forecasts.length > 0 ? Number(Math.max(...forecasts).toFixed(2)) : 0;
+      const min = forecasts.length > 0 ? Number(Math.min(...forecasts).toFixed(2)) : 0;
+      const avg = forecasts.length > 0 ? Number((forecasts.reduce((a, b) => a + b, 0) / forecasts.length).toFixed(2)) : 0;
+      const danger_count = stations.filter(s => Number(s.forecasted) >= 41).length;
+      const maxStation = stations.reduce((prev, curr) => Number(curr.forecasted) > Number(prev.forecasted) ? curr : prev);
+      const minStation = stations.reduce((prev, curr) => Number(curr.forecasted) < Number(prev.forecasted) ? curr : prev);
+      const fastestStation = stations.reduce((prev, current) => Number(current.trend) > Number(prev.trend) ? current : prev);
       summary = {
         max,
         max_station: maxStation?.station_name || "",
@@ -111,12 +99,9 @@ router.get("/home-summary", async (req, res) => {
         avg,
         danger_count,
         fastest_increasing_station: fastestStation.station_name,
-        fastest_increasing_trend:
-          Math.round(Number(fastestStation.trend) * 10) / 10,
-        avg_model_forecasted:
-          pagasaModelAvgResult.rows[0]?.avg_model_forecasted ?? 0,
-        avg_pagasa_forecasted:
-          pagasaModelAvgResult.rows[0]?.avg_pagasa_forecasted ?? 0
+        fastest_increasing_trend: Number(Number(fastestStation.trend).toFixed(2)),
+        avg_model_forecasted: pagasaModelAvgResult.rows[0]?.avg_model_forecasted ? Number(Number(pagasaModelAvgResult.rows[0].avg_model_forecasted).toFixed(2)) : 0,
+        avg_pagasa_forecasted: pagasaModelAvgResult.rows[0]?.avg_pagasa_forecasted ? Number(Number(pagasaModelAvgResult.rows[0].avg_pagasa_forecasted).toFixed(2)) : 0
       };
     }
 
@@ -199,18 +184,24 @@ router.get("/stations-table", async (req, res) => {
     const offsetNum = parseInt(offset as string);
 
     const query = `
-        SELECT
-          s.station AS name,
-          ROUND(h.model_forecasted::numeric, 1) AS heat_index,
-          COALESCE(c.level, 'N/A') AS risk_level,
-          ROUND(h.trend::numeric, 1) AS trend
-        FROM heat_index h
-        JOIN stations s ON s.id = h.station
-        LEFT JOIN classification c ON h.risk_level = c.id
-        WHERE h.date = $1
-        ORDER BY s.station
-        LIMIT $2 OFFSET $3
-      `;
+      SELECT
+        s.station AS name,
+        ROUND(mh.tomorrow::numeric, 1) AS heat_index,
+        COALESCE(c.level, 'N/A') AS risk_level,
+        ROUND(h.trend::numeric, 1) AS trend
+      FROM model_heat_index mh
+      JOIN stations s
+        ON s.id = mh.station
+      LEFT JOIN heat_index h
+        ON h.station = mh.station
+      AND h.date = mh.date
+      LEFT JOIN classification c
+        ON mh.tomorrow >= c.min_temp
+      AND mh.tomorrow < CAST(c.max_temp AS NUMERIC) + 1
+      WHERE mh.date = $1
+      ORDER BY s.station
+      LIMIT $2 OFFSET $3
+    `;
 
     const result = await pool.query(
       query,
