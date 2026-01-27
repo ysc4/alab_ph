@@ -15,7 +15,7 @@ import math
 
 def load_model():
     """Load the trained XGBoost model"""
-    model_path = os.path.join(os.path.dirname(__file__), '../models/xgb_model.pkl')
+    model_path = os.path.join(os.path.dirname(__file__), '../models/model.pkl')
     try:
         with open(model_path, 'rb') as f:
             import warnings
