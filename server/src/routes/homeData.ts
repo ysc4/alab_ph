@@ -165,7 +165,7 @@ router.get("/forecast-error", async (req, res) => {
 /**
  * Synoptics Table Route
  */
-router.get("/synoptics-table", async (req, res) => {
+router.get("/stations-table", async (req, res) => {
   try {
     const pool = getDB();
     const { date } = req.query;
