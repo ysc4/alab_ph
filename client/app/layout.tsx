@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import React, { ReactNode } from "react";
 import "./globals.css";
-import { Poppins } from "next/font/google";
+import { Inter } from "next/font/google";
 
-// Load Poppins with all weights
-const poppins = Poppins({
+// Load Inter with all weights
+const inter = Inter({
   weight: ["100","200","300","400","500","600","700","800","900"],
   subsets: ["latin"],
   variable: "--font-sans",
@@ -21,7 +21,7 @@ export default function RootLayout({
   children: ReactNode;
 }): React.ReactElement {
   return (
-    <html lang="en" className={poppins.variable}>
+    <html lang="en" className={inter.variable}>
       <body>{children}</body>
     </html>
   );
