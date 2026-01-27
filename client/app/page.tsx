@@ -6,6 +6,7 @@ import Header from "./components/header";
 import Home from "./pages/home";
 import Station from "./pages/station";
 import Map from "./pages/map";
+import { API_BASE_URL } from "./utils/api";
 
 type PageKey = "Home" | "Map" | "Station";
 
@@ -30,7 +31,7 @@ export default function Page(): React.ReactNode {
       
       if (!confirmed) return;
 
-      const response = await fetch('http://localhost:4001/api/generate-forecasts', {
+      const response = await fetch(`${API_BASE_URL}/generate-forecasts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
