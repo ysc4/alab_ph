@@ -169,32 +169,24 @@ router.get("/forecast-error", async (req, res) => {
 router.get("/stations-table", async (req, res) => {
   try {
     const pool = getDB();
-    const { date, limit = '100', offset = '0' } = req.query;
+    const { date, limit = "100", offset = "0" } = req.query;
+
     const limitNum = parseInt(limit as string);
     const offsetNum = parseInt(offset as string);
 
-    const query = date
-      ? `SELECT
-          s.station AS name,
-          ROUND(COALESCE(h.model_forecasted, 1)::numeric, 1) AS heat_index,
+    const query =`
+        SELECT
+          h.station AS name,
+          ROUND(h.model_forecasted::numeric, 1) AS heat_index,
           COALESCE(c.level, 'N/A') AS risk_level,
-          ROUND(COALESCE(h.trend, 0)::numeric, 1) AS trend
+          ROUND(h.trend::numeric, 1) AS trend
         FROM heat_index h
-        JOIN stations s ON s.id = h.station
-        LEFT JOIN classification c ON h.model_forecasted >= c.min_temp AND h.model_forecasted < CAST(c.max_temp AS NUMERIC) + 1
+        LEFT JOIN classification c
+          ON h.risk_level = c.id
         WHERE h.date = $1
-        ORDER BY s.station
-        LIMIT $2 OFFSET $3`
-      : `SELECT DISTINCT ON (h.station)
-          s.station AS name,
-          ROUND(COALESCE(h.model_forecasted, 1)::numeric, 1) AS heat_index,
-          COALESCE(c.level, 'N/A') AS risk_level,
-          ROUND(COALESCE(h.trend, 0)::numeric, 1) AS trend
-        FROM heat_index h
-        JOIN stations s ON s.id = h.station
-        LEFT JOIN classification c ON h.model_forecasted >= c.min_temp AND h.model_forecasted < CAST(c.max_temp AS NUMERIC) + 1
-        ORDER BY h.station, h.date DESC
-        LIMIT $1 OFFSET $2`;
+        ORDER BY h.station
+        LIMIT $2 OFFSET $3
+      `;
 
     const result = await pool.query(
       query,
@@ -203,13 +195,14 @@ router.get("/stations-table", async (req, res) => {
 
     const formatted = result.rows.map(row => ({
       name: row.name,
-      heat_index: Number(row.heat_index),
+      heat_index: row.heat_index !== null ? Number(row.heat_index) : null,
       risk_level: row.risk_level,
-      trend: row.trend !== null && row.trend !== undefined
-        ? (Number(row.trend) > 0
+      trend:
+        row.trend !== null
+          ? row.trend > 0
             ? `+${Number(row.trend).toFixed(1)}°C`
-            : `${Number(row.trend).toFixed(1)}°C`)
-        : null
+            : `${Number(row.trend).toFixed(1)}°C`
+          : null
     }));
 
     res.json(formatted);
@@ -218,5 +211,6 @@ router.get("/stations-table", async (req, res) => {
     res.status(500).json({ error: "Failed to load stations table" });
   }
 });
+
 
 export default router;
