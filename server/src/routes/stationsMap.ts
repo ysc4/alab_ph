@@ -8,7 +8,7 @@ const router = Router();
  * Shared query logic for station marker data
  */
 const getStationQuery = (stationFilter: string) => `
-  SELECT
+  SELECT DISTINCT ON (s.id)
     s.id,
     s.station AS name,
     s.latitude AS lat,
@@ -32,7 +32,7 @@ const getStationQuery = (stationFilter: string) => `
   WHERE s.latitude IS NOT NULL
     AND s.longitude IS NOT NULL
     ${stationFilter}
-  ORDER BY s.station;
+  ORDER BY s.id, s.station;
 `;
 
 // Fetch all stations with lat/lng and latest heat_index (or specific date)
