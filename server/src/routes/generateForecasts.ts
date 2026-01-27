@@ -55,16 +55,34 @@ router.post("/generate-forecasts", async (req, res) => {
       console.warn("Python stderr:", stderr);
     }
 
-    // Parse Python output (expecting JSON with forecasts)
-    let forecasts;
-    try {
-      forecasts = JSON.parse(stdout);
-    } catch (parseError) {
-      console.error("Failed to parse Python output:", stdout);
+
+    // Parse Python output (expecting JSON with forecasts and abs_errors)
+    // The Python script prints two JSON objects: forecasts and {'abs_errors': ...}
+    // We'll split the output by lines and parse both
+    const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
+    let forecasts: any[] = [];
+    let absErrors: any[] = [];
+    for (const line of lines) {
+      try {
+        const obj = JSON.parse(line);
+        if (Array.isArray(obj)) {
+          forecasts = obj;
+        } else if (obj.abs_errors) {
+          absErrors = obj.abs_errors;
+        }
+      } catch (e) {
+        // Ignore lines that are not JSON
+      }
+    }
+    if (!forecasts.length) {
+      console.error("No forecasts parsed from Python output:", stdout);
       throw new Error("Invalid forecast data from model");
     }
-
-    console.log(`Received ${forecasts.length} forecasts from model`);
+    if (!absErrors.length) {
+      console.error("No abs_errors parsed from Python output:", stdout);
+      throw new Error("No abs_errors data from model");
+    }
+    console.log(`Received ${forecasts.length} forecasts and ${absErrors.length} abs_errors from model`);
 
     // Calculate dates for T+1 and T+2
     const baseDate = new Date(date);
@@ -94,41 +112,38 @@ router.post("/generate-forecasts", async (req, res) => {
     
     for (const forecast of forecasts) {
       const { station_id, tomorrow: tomorrowTemp, day_after_tomorrow: dayAfterTomorrowTemp } = forecast;
+      // Find matching abs error for this station
+      const err = absErrors.find((e: any) => e.station_id === station_id);
+      const absError1d = err ? err.abs_error_1d : null;
+      const absError2d = err ? err.abs_error_2d : null;
 
-      console.log(`Processing station ${station_id}: tomorrow=${tomorrowTemp}, day_after=${dayAfterTomorrowTemp}`);
+      console.log(`Processing station ${station_id}: tomorrow=${tomorrowTemp}, day_after=${dayAfterTomorrowTemp}, abs_error_1d=${absError1d}, abs_error_2d=${absError2d}`);
 
       try {
         // Check if record already exists for this date and station
-        // Using date as-is since it's already in YYYY-MM-DD format
         const existingRecord = await pool.query(
           `SELECT id FROM model_heat_index WHERE station = $1 AND date = $2`,
           [station_id, date]
         );
 
-        console.log(`Existing record check for station ${station_id}: found ${existingRecord.rows.length} records`);
-
         if (existingRecord.rows.length > 0) {
           // Update existing record
-          console.log(`Updating existing record for station ${station_id} on date ${date}`);
           const updateResult = await pool.query(
             `UPDATE model_heat_index 
-             SET tomorrow = $1, day_after_tomorrow = $2
-             WHERE station = $3 AND date = $4
-             RETURNING id, station, date, tomorrow, day_after_tomorrow`,
-            [tomorrowTemp, dayAfterTomorrowTemp, station_id, date]
+             SET tomorrow = $1, day_after_tomorrow = $2, 1day_abs_error = $3, 2day_abs_error = $4
+             WHERE station = $5 AND date = $6
+             RETURNING id, station, date, tomorrow, day_after_tomorrow, 1day_abs_error, 2day_abs_error`,
+            [tomorrowTemp, dayAfterTomorrowTemp, absError1d, absError2d, station_id, date]
           );
-          console.log(`Update result:`, updateResult.rows);
           updateCount++;
         } else {
-          // Insert new record (date is already in YYYY-MM-DD format)
-          console.log(`Inserting new record for station ${station_id} on date ${date}`);
+          // Insert new record
           const insertResult = await pool.query(
-            `INSERT INTO model_heat_index (station, date, tomorrow, day_after_tomorrow)
-             VALUES ($1, $2, $3, $4)
-             RETURNING id, station, date, tomorrow, day_after_tomorrow`,
-            [station_id, date, tomorrowTemp, dayAfterTomorrowTemp]
+            `INSERT INTO model_heat_index (station, date, tomorrow, day_after_tomorrow, 1day_abs_error, 2day_abs_error)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING id, station, date, tomorrow, day_after_tomorrow, 1day_abs_error, 2day_abs_error`,
+            [station_id, date, tomorrowTemp, dayAfterTomorrowTemp, absError1d, absError2d]
           );
-          console.log(`Insert result:`, insertResult.rows);
           insertCount++;
         }
       } catch (dbError) {

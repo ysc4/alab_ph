@@ -11,6 +11,9 @@ import os
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
+
+import psycopg2
+import psycopg2.extras
 import math
 
 def load_model():
@@ -26,17 +29,18 @@ def load_model():
         print(json.dumps({"error": f"Failed to load model: {str(e)}"}), file=sys.stderr)
         sys.exit(1)
 
-def load_validation_data():
-    """Load the test CSV data for feature reference"""
-    csv_path = os.path.join(os.path.dirname(__file__), 'df_test_final.csv')
+
+def get_db_connection():
+    # Use environment variable DATABASE_URL or hardcode for local dev
+    db_url = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/postgres')
     try:
-        df = pd.read_csv(csv_path)
-        return df
+        conn = psycopg2.connect(db_url)
+        return conn
     except Exception as e:
-        print(json.dumps({"error": f"Failed to load test data: {str(e)}"}), file=sys.stderr)
+        print(json.dumps({"error": f"Failed to connect to database: {str(e)}"}), file=sys.stderr)
         sys.exit(1)
 
-def prepare_features(station_id, date_str, df_val, station_coords):
+def prepare_features(station_id, date_str, conn, station_coords):
     """
     Prepare the exact 67 features required by the model
     Uses the most recent data from test dataset for the given station based on coordinates
@@ -51,36 +55,25 @@ def prepare_features(station_id, date_str, df_val, station_coords):
     Returns:
         numpy array of features with shape (1, 67) matching model's expected features
     """
+
+    # Use df_test_final.csv for feature extraction
+    # station_coords: {station_id: (lat, lon), 'df_val': df_val}
+    df_val = station_coords['df_val']
     # Convert Date column to datetime if not already
     if df_val['Date'].dtype != 'datetime64[ns]':
         df_val['Date'] = pd.to_datetime(df_val['Date'])
-    
     # Filter data for March to May 2023 only
     df_filtered = df_val[(df_val['Date'] >= '2023-03-01') & (df_val['Date'] <= '2023-05-31')]
-    
     # Get coordinates for this station
     if station_id in station_coords:
         target_lat, target_lon = station_coords[station_id]
-        
-        # Find records matching these coordinates (with small tolerance for floating point)
-        station_data = df_filtered[
-            (abs(df_filtered['Latitude'] - target_lat) < 0.001) & 
-            (abs(df_filtered['Longitude'] - target_lon) < 0.001)
-        ].tail(1)
+        station_data = df_filtered[(abs(df_filtered['Latitude'] - target_lat) < 0.001) & (abs(df_filtered['Longitude'] - target_lon) < 0.001)].tail(1)
     else:
         station_data = pd.DataFrame()
-    
     if len(station_data) == 0:
-        # If no data for this station, use the most recent data available from filtered period
         station_data = df_filtered.tail(1)
-    
-    # Parse the target date
-    target_date = datetime.strptime(date_str, '%Y-%m-%d')
-    
     # Extract the exact 67 features in the order the model expects
     features = []
-    
-    # Helper function to safely extract scalar values
     def get_val(col_name):
         return float(station_data[col_name].iloc[0])
     
@@ -194,82 +187,98 @@ def generate_forecasts(date_str):
     Returns:
         List of forecast dictionaries
     """
-    # Load model and validation data
+
     model = load_model()
-    df_val = load_validation_data()
-    
-    # Extract unique station coordinates from the CSV
-    unique_stations = df_val[['Latitude', 'Longitude']].drop_duplicates().reset_index(drop=True)
-    
-    # Create a mapping of station IDs to coordinates
-    station_coords = {}
-    for idx, row in unique_stations.iterrows():
-        station_id = idx + 1  # 1-based station IDs
-        station_coords[station_id] = (row['Latitude'], row['Longitude'])
-    
+    conn = get_db_connection()
     forecasts = []
-    
-    for station_id in range(1, len(station_coords) + 1):
-        try:
-            # Prepare features for T+1
-            features_t1 = prepare_features(station_id, date_str, df_val, station_coords)
-            tomorrow_prediction = model.predict(features_t1)
-            tomorrow_forecast = float(tomorrow_prediction.flatten()[0])
-            
-            # Prepare features for T+2
-            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-            date_t1 = (date_obj + timedelta(days=1)).strftime('%Y-%m-%d')
-            features_t2 = prepare_features(station_id, date_t1, df_val, station_coords)
-            day_after_prediction = model.predict(features_t2)
-            day_after_tomorrow_forecast = float(day_after_prediction.flatten()[0])
-            
-            # Round to 2 decimal places
-            tomorrow_forecast = round(tomorrow_forecast, 2)
-            day_after_tomorrow_forecast = round(day_after_tomorrow_forecast, 2)
-            
-            # Ensure reasonable bounds (27-55°C for heat index)
-            tomorrow_forecast = max(27.0, min(55.0, tomorrow_forecast))
-            day_after_tomorrow_forecast = max(27.0, min(55.0, day_after_tomorrow_forecast))
-            
-            forecasts.append({
-                'station_id': station_id,
-                'tomorrow': tomorrow_forecast,
-                'day_after_tomorrow': day_after_tomorrow_forecast
-            })
-            
-        except Exception as e:
-            # Log error but continue with other stations
-            import traceback
-            print(json.dumps({
-                "warning": f"Failed to generate forecast for station {station_id}: {str(e)}",
-                "traceback": traceback.format_exc()
-            }), file=sys.stderr)
-            continue
-    
+    # Get all station ids and coordinates from the database
+    with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        cur.execute('SELECT id, latitude, longitude FROM stations ORDER BY id')
+        stations = cur.fetchall()
+        station_coords = {row['id']: (row['latitude'], row['longitude']) for row in stations}
+        for station in stations:
+            station_id = station['id']
+            try:
+                features_t1 = prepare_features(station_id, date_str, conn, station_coords)
+                tomorrow_prediction = model.predict(features_t1)
+                tomorrow_forecast = float(tomorrow_prediction.flatten()[0])
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                date_t1 = (date_obj + timedelta(days=1)).strftime('%Y-%m-%d')
+                features_t2 = prepare_features(station_id, date_t1, conn, station_coords)
+                day_after_prediction = model.predict(features_t2)
+                day_after_tomorrow_forecast = float(day_after_prediction.flatten()[0])
+                tomorrow_forecast = round(tomorrow_forecast, 2)
+                day_after_tomorrow_forecast = round(day_after_tomorrow_forecast, 2)
+                tomorrow_forecast = max(27.0, min(55.0, tomorrow_forecast))
+                day_after_tomorrow_forecast = max(27.0, min(55.0, day_after_tomorrow_forecast))
+                forecasts.append({
+                    'station_id': station_id,
+                    'tomorrow': tomorrow_forecast,
+                    'day_after_tomorrow': day_after_tomorrow_forecast
+                })
+            except Exception as e:
+                import traceback
+                print(json.dumps({
+                    "warning": f"Failed to generate forecast for station {station_id}: {str(e)}",
+                    "traceback": traceback.format_exc()
+                }), file=sys.stderr)
+                continue
+    conn.close()
     return forecasts
+
+
+
+def compute_abs_errors(date_str, forecasts):
+    """
+    Compute 1-day and 2-day absolute errors for each station using the database.
+    Args:
+        date_str: The base date (YYYY-MM-DD)
+        forecasts: List of forecast dicts from generate_forecasts
+    Returns:
+        List of dicts with station_id, abs_error_1d, abs_error_2d
+    """
+    conn = get_db_connection()
+    base_date = datetime.strptime(date_str, '%Y-%m-%d')
+    t1_date = (base_date + timedelta(days=1)).strftime('%Y-%m-%d')
+    t2_date = (base_date + timedelta(days=2)).strftime('%Y-%m-%d')
+    errors = []
+    with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        for f in forecasts:
+            sid = f['station_id']
+            # 1-day error
+            cur.execute('SELECT actual FROM heat_index WHERE station = %s AND date = %s', (sid, t1_date))
+            row1 = cur.fetchone()
+            # 2-day error
+            cur.execute('SELECT actual FROM heat_index WHERE station = %s AND date = %s', (sid, t2_date))
+            row2 = cur.fetchone()
+            abs_error_1d = abs(f['tomorrow'] - row1['actual']) if row1 else None
+            abs_error_2d = abs(f['day_after_tomorrow'] - row2['actual']) if row2 else None
+            errors.append({
+                'station_id': sid,
+                'abs_error_1d': abs_error_1d,
+                'abs_error_2d': abs_error_2d
+            })
+    conn.close()
+    return errors
 
 def main():
     """Main function"""
     if len(sys.argv) < 2:
         print(json.dumps({"error": "Date argument required (YYYY-MM-DD)"}), file=sys.stderr)
         sys.exit(1)
-    
     date_str = sys.argv[1]
-    
     # Validate date format
     try:
         datetime.strptime(date_str, '%Y-%m-%d')
     except ValueError:
         print(json.dumps({"error": "Invalid date format. Use YYYY-MM-DD"}), file=sys.stderr)
         sys.exit(1)
-    
     # Generate forecasts
     try:
         forecasts = generate_forecasts(date_str)
-        
-        # Output as JSON
         print(json.dumps(forecasts))
-        
+        abs_errors = compute_abs_errors(date_str, forecasts)
+        print(json.dumps({'abs_errors': abs_errors}))
     except Exception as e:
         print(json.dumps({"error": str(e)}), file=sys.stderr)
         sys.exit(1)
