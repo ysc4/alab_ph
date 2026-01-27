@@ -4,17 +4,16 @@ Heat Index Forecast Worker (DB-free)
 
 Outputs:
 1) JSON array of forecasts
-2) JSON object with abs_errors (null since no DB)
 """
 
 import sys
 import json
 import os
-import pickle
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
+from joblib import load  # joblib for .pkl model
 
 # --------------------------------------------------
 # Config
@@ -29,8 +28,8 @@ DATA_PATH = os.path.join(BASE_DIR, "df_test_final.csv")
 # --------------------------------------------------
 
 def load_model():
-    with open(MODEL_PATH, "rb") as f:
-        return pickle.load(f)
+    """Load the trained XGBoost model using joblib"""
+    return load(MODEL_PATH)
 
 def prepare_features(station_id, df):
     df = df.copy()
@@ -39,7 +38,7 @@ def prepare_features(station_id, df):
     # March–May 2023 only
     df = df[(df["Date"] >= "2023-03-01") & (df["Date"] <= "2023-05-31")]
 
-    # Use latest row per station (by lat/lon group)
+    # Filter rows for this station using station_id
     row = df[df["station_id"] == station_id].tail(1)
 
     if row.empty:
@@ -149,8 +148,6 @@ def main():
     df = pd.read_csv(DATA_PATH)
 
     forecasts = []
-    abs_errors = []
-
     station_ids = df["station_id"].unique()
 
     for sid in station_ids:
@@ -164,14 +161,7 @@ def main():
             "day_after_tomorrow": pred
         })
 
-        abs_errors.append({
-            "station_id": int(sid),
-            "abs_error_1d": None,
-            "abs_error_2d": None
-        })
-
     print(json.dumps(forecasts))
-    print(json.dumps({"abs_errors": abs_errors}))
 
 if __name__ == "__main__":
     main()
