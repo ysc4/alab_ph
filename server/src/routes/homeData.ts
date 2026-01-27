@@ -9,15 +9,6 @@ router.get("/home-summary", async (req, res) => {
     const pool = getDB();
     const { date } = req.query;
 
-    // Prepare date condition
-    const dateCondition = date
-      ? 'h.date = $1'
-      : `h.date = (
-          SELECT MAX(date)
-          FROM heat_index hi
-          WHERE hi.station = h.station
-        )`;
-
     // Fetch summary, averages, and classification counts
     const [
       summaryResult,
@@ -30,9 +21,7 @@ router.get("/home-summary", async (req, res) => {
           mh.station,
           s.station AS station_name,
           ${roundNumeric('mh.tomorrow', 0)} AS forecasted,
-          ${roundNumeric('h.trend', 0)} AS trend,
-          ${roundNumeric('h.model_forecasted', 0)} AS model_forecasted,
-          ${roundNumeric('h.pagasa_forecasted', 0)} AS pagasa_forecasted
+          ${roundNumeric('h.trend', 0)} AS trend
         FROM model_heat_index mh
         JOIN stations s ON s.id = mh.station
         LEFT JOIN heat_index h ON h.station = mh.station AND h.date = mh.date
@@ -47,7 +36,7 @@ router.get("/home-summary", async (req, res) => {
           ROUND(AVG(h.model_forecasted)::numeric, 2) AS avg_model_forecasted,
           ROUND(AVG(h.pagasa_forecasted)::numeric, 2) AS avg_pagasa_forecasted
         FROM heat_index h
-        WHERE ${dateCondition}`,
+        WHERE h.date = $1`,
         date ? [date] : []
       ),
 
@@ -58,7 +47,7 @@ router.get("/home-summary", async (req, res) => {
           COUNT(DISTINCT h.station) AS value
         FROM heat_index h
         JOIN classification c ON h.actual >= c.min_temp AND h.actual < CAST(c.max_temp AS NUMERIC) + 1
-        WHERE ${dateCondition}
+        WHERE h.date = $1
         GROUP BY c.level`,
         date ? [date] : []
       )
