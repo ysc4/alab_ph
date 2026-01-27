@@ -198,17 +198,17 @@ router.get("/stations-table", async (req, res) => {
     const limitNum = parseInt(limit as string);
     const offsetNum = parseInt(offset as string);
 
-    const query =`
+    const query = `
         SELECT
-          h.station AS name,
+          s.station AS name,
           ROUND(h.model_forecasted::numeric, 1) AS heat_index,
           COALESCE(c.level, 'N/A') AS risk_level,
           ROUND(h.trend::numeric, 1) AS trend
         FROM heat_index h
-        LEFT JOIN classification c
-          ON h.risk_level = c.id
+        JOIN stations s ON s.id = h.station
+        LEFT JOIN classification c ON h.risk_level = c.id
         WHERE h.date = $1
-        ORDER BY h.station
+        ORDER BY s.station
         LIMIT $2 OFFSET $3
       `;
 
@@ -235,6 +235,7 @@ router.get("/stations-table", async (req, res) => {
     res.status(500).json({ error: "Failed to load stations table" });
   }
 });
+
 
 
 export default router;
