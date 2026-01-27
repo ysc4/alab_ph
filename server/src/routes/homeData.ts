@@ -179,10 +179,7 @@ router.get("/stations-table", async (req, res) => {
   try {
     const pool = getDB();
     const { date, limit = "100", offset = "0" } = req.query;
-
-    const limitNum = parseInt(limit as string);
-    const offsetNum = parseInt(offset as string);
-
+    
     const query = `
       SELECT
         s.station AS name,
@@ -200,12 +197,11 @@ router.get("/stations-table", async (req, res) => {
       AND mh.tomorrow < CAST(c.max_temp AS NUMERIC) + 1
       WHERE mh.date = $1
       ORDER BY s.station
-      LIMIT $2 OFFSET $3
     `;
 
     const result = await pool.query(
       query,
-      date ? [date, limitNum, offsetNum] : [limitNum, offsetNum]
+      date ? [date] : [new Date().toISOString().split("T")[0]]
     );
 
     const formatted = result.rows.map(row => ({
