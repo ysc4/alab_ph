@@ -6,6 +6,9 @@ import StationMarker from "../components/station-marker";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
+// Static libraries array to prevent LoadScript reload
+const GOOGLE_MAPS_LIBRARIES: ("marker")[] = ["marker"];
+
 interface MapProps {
   selectedDate: string;
   onDateSelect: (date: string) => void;
@@ -47,7 +50,7 @@ const getTemperatureWeight = (temp: number): number => {
 export default function HeatMapDummy({ selectedDate }: MapProps) {
   const { isLoaded } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
-    libraries: ["marker"],
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   const [stationPoints, setStationPoints] = useState<StationData[]>([]);
