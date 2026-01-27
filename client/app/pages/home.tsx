@@ -60,7 +60,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
   
   // State for API data
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
-  // Removed averageHeatIndexData, use summaryData instead
+  const [averageHeatIndexData, setAverageHeatIndexData] = useState<AverageHI[]>([]);
   const [forecastErrorData, setForecastErrorData] = useState<ForecastError[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [synopticData, setSynopticData] = useState<SynopticData[]>([]);
@@ -218,7 +218,20 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
       .catch(err => console.error("Error fetching home summary:", err));
   }, [selectedDate, refreshTrigger]);
 
-  // Removed averageHeatIndexData fetching
+  // Fetch nationwide heat index trend
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/nationwide-trend?range=${heatIndexPeriod}&date=${selectedDate}`)
+      .then(async res => {
+        if (!res.ok) {
+          const text = await res.text();
+          console.error('Trend response error:', text);
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then(data => setAverageHeatIndexData(data))
+      .catch(err => console.error("Error fetching heat index trend:", err));
+  }, [heatIndexPeriod, selectedDate, refreshTrigger]);
 
   // Fetch forecast error data
   useEffect(() => {
@@ -326,6 +339,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
             <ResponsiveContainer width="100%" height={400}>
               <LineChart data={[{
                 day: selectedDate?.slice(-2) || '',
+                observed: summaryData.avg ?? 0,
                 avg_model_forecasted: summaryData.avg_model_forecasted ?? 0,
                 avg_pagasa_forecasted: summaryData.avg_pagasa_forecasted ?? 0,
               }]}> 
@@ -334,22 +348,9 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="avg_model_forecasted"
-                  stroke="#F59E42"
-                  name="Average Model Forecasted"
-                  dot={false}
-                  isAnimationActive={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="avg_pagasa_forecasted"
-                  stroke="#B91C1C"
-                  name="Average PAGASA Forecasted"
-                  dot={false}
-                  isAnimationActive={false}
-                />
+                <Line type="monotone" dataKey="observed" stroke="#1666BA" name="Observed" />
+                <Line type="monotone" dataKey="avg_model_forecasted" stroke="#F59E42" name="Average Model Forecasted" dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey="avg_pagasa_forecasted" stroke="#B91C1C" name="Average PAGASA Forecasted" dot={false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -358,15 +359,17 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
             </div>
           )}
         </div>
+      </div>
+
+      <div className="p-6 bg-white rounded-xl shadow flex flex-col">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-2xl font-extrabold">Absolute Forecast Error</h2>
+          <Toggle options={["Week", "Month"]} onSelect={(selected) => setForecastErrorPeriod(selected as "Week" | "Month")} />
         </div>
         <div className="flex-1 w-full">
-          {summaryData && (summaryData.avg_1day_abs_error !== undefined || summaryData.avg_2day_abs_error !== undefined) ? (
+          {forecastErrorData.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={[{
-                day: selectedDate?.slice(-2) || '',
-                t_plus_one: summaryData.avg_1day_abs_error ?? 0,
-                t_plus_two: summaryData.avg_2day_abs_error ?? 0,
-              }]}> 
+              <LineChart data={forecastErrorData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
                 <YAxis />
@@ -491,6 +494,8 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
       </div>
     </div>
   </div>
+
+</div>
 
   );
 });
