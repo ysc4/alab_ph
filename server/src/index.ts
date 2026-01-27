@@ -18,6 +18,14 @@ app.use(cors());
 app.use(helmet());
 app.use(express.json());
 app.use(morgan("dev"));
+// Pretty print JSON responses
+app.set('json spaces', 2);
+
+
+// Root route for health check or info
+app.get("/", (_req, res) => {
+  res.json({ status: "OK", server: "ALAB-PH SERVER" });
+});
 
 app.get("/dashboard", (_req, res) => {
   res.json({ status: "OK", server: "ALAB-PH SERVER" });
