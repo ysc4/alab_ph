@@ -13,7 +13,7 @@ const getStationQuery = (stationFilter: string) => `
     s.station AS name,
     s.latitude AS lat,
     s.longitude AS lng,
-    ${roundNumeric('hi.model_forecasted', 0)} AS temp,
+    ${roundNumeric('hi.actual', 0)} AS temp,
     ${roundNumeric('hi.pagasa_forecasted', 0)} AS forecasted,
     ${roundNumeric('hi.model_forecasted', 0)} AS modelForecasted,
     ${getRiskLevelCase('hi.model_forecasted')} AS riskLevel,
