@@ -74,7 +74,11 @@ router.get("/home-summary", async (req, res) => {
       avg: 0,
       danger_count: 0,
       fastest_increasing_station: '',
-      fastest_increasing_trend: 0
+      fastest_increasing_trend: 0,
+      avg_model_forecasted: 0,
+      avg_pagasa_forecasted: 0,
+      avg_1day_abs_error: 0,
+      avg_2day_abs_error: 0
     };
 
     if (stations.length > 0) {
