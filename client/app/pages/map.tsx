@@ -1,6 +1,6 @@
 "use client"; // for Next.js 13+ client component
 
-import { useLoadScript, GoogleMap, HeatmapLayer } from "@react-google-maps/api";
+import { useLoadScript, GoogleMap } from "@react-google-maps/api";
 import { useState, useEffect } from "react";
 import StationMarker from "../components/station-marker";
 
@@ -47,10 +47,9 @@ const getTemperatureWeight = (temp: number): number => {
 export default function HeatMapDummy({ selectedDate }: MapProps) {
   const { isLoaded } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
-    libraries: ["visualization", "marker"],
+    libraries: ["marker"],
   });
 
-  const [heatmapData, setHeatmapData] = useState<google.maps.visualization.WeightedLocation[]>([]);
   const [stationPoints, setStationPoints] = useState<StationData[]>([]);
   const [openMarker, setOpenMarker] = useState<number | null>(null);
   const [stationDetails, setStationDetails] = useState<StationDetailData | null>(null);
@@ -98,19 +97,6 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
       console.error("Error fetching station details:", error);
     }
   };
-
-  useEffect(() => {
-    if (!isLoaded || stationPoints.length === 0) return;
-
-    const points = stationPoints
-      .filter((p) => p.temp >= 27) // Only include stations with Caution level or above (>= 27°C)
-      .map((p) => ({
-        location: new google.maps.LatLng(p.lat, p.lng),
-        weight: getTemperatureWeight(p.temp),
-      }));
-
-    setHeatmapData(points);
-  }, [isLoaded, stationPoints]);
 
   if (!isLoaded || loading) return (
     <div style={{ 
@@ -183,30 +169,6 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
           (window as any).__GOOGLE_MAP_INSTANCE__ = map;
         }}
       >
-        {heatmapData.length > 0 && (
-          <HeatmapLayer
-            data={heatmapData}
-            options={{
-              radius: 50,
-              opacity: 0.8,
-              dissipating: true,
-              gradient: [
-                "rgba(255, 255, 255, 0)",      // Transparent (outermost)
-                "rgba(255, 193, 7, 0.3)",      // Caution - Yellow (start)
-                "rgba(255, 193, 7, 0.6)",      // Caution - Yellow
-                "rgba(255, 193, 7, 0.8)",      // Caution - Yellow
-                "rgba(251, 146, 60, 0.6)",      // Extreme Caution - Orange
-                "rgba(251, 146, 60, 0.8)",      // Extreme Caution - Orange
-                "rgba(251, 146, 60, 1)",        // Extreme Caution - Orange
-                "rgba(244, 67, 54, 0.7)",      // Danger - Red
-                "rgba(244, 67, 54, 0.9)",      // Danger - Red
-                "rgba(244, 67, 54, 1)",        // Danger - Red
-                "rgba(183, 28, 28, 0.9)",      // Extreme Danger - Dark Red
-                "rgba(183, 28, 28, 1)",        // Extreme Danger - Dark Red (high intensity)
-              ],
-            }}
-          />
-        )}
         {stationPoints.map((point) => (
           <StationMarker
             key={point.id}
