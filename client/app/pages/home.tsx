@@ -4,7 +4,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import Toggle from "../components/toggle";
 import ClassificationSelector from "../components/classification-selector";
-import { formatDateShort } from "../utils/dateFormatter";
+import { formatDate } from "../utils/dateFormatter";
 import { API_BASE_URL } from "../utils/api";
 
 // Types
@@ -80,42 +80,43 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
       const stationsData = await response.json();
       console.log('Stations data received:', stationsData.length, 'stations');
 
-      // Helper function for coloring based on heat index
+      // Helper function for coloring based on heat index with lighter opacity
       const getHeatIndexColor = (value: number) => {
-        if (value >= 27) return "#FFC107";       
-        if (value >= 33) return "#FF9800";       
-        if (value >= 42) return "#F44336";       
-        return "#B71C1C";                        
+        if (value > 42) return "rgba(183, 28, 28, 0.3);";        // Light dark red
+        if (value >= 33) return "rgba(255, 152, 0, 0.3);";       // Light orange
+        if (value >= 27) return "rgba(255, 193, 7, 0.3);";       // Light yellow
+        return "rgba(76, 175, 80, 0.3);";                        // Light green
       };
 
       // Create hidden container for PDF generation
       const container = document.createElement("div");
       container.style.position = "absolute";
       container.style.left = "-9999px";
-      container.style.width = "1200px";
+      container.style.width = "850px";
       container.style.backgroundColor = "white";
       container.style.padding = "20px";
       container.style.fontFamily = "Arial, sans-serif";
 
       // Build table HTML
       let tableHTML = `
-        <div style="padding: 20px;">
-          <h1 style="text-align: center; margin-bottom: 10px;">HEAT INDEX FORECAST COMPILATION REPORT</h1>
-          <h3 style="text-align: center; margin-bottom: 5px;">Forecasted Heat Index Values per Synoptic Station</h3>
-          <p style="text-align: center; margin-bottom: 20px;">
-            Coverage: Synoptic Stations in Luzon<br/>
+        <div style="padding: 40px;">
+          <h1 style="text-align: center; margin-bottom: 10px; font-size: 20px; font-weight: 600;">HEAT INDEX FORECAST COMPILATION REPORT</h1>
+          <h3 style="text-align: center; margin-bottom: 5px; font-size: 14px;">Forecasted Heat Index Values per Synoptic Station</h3>
+          <p style="text-align: center; margin-bottom: 20px; font-size: 12px;">
             Forecast Horizon: T+1 & T+2 Days (where T is Today)<br/>
-            Reporting Period: ${formatDateShort(selectedDate)}
+            Reporting Period: ${formatDate(selectedDate)}
           </p>
-          <table style="width: 100%; border-collapse: collapse; text-align: center;">
+          <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 11px;">
             <thead>
               <tr style="background-color: #1E40AF; color: white;">
-                <th style="border: 1px solid #000; padding: 8px;">Station</th>
-                <th style="border: 1px solid #000; padding: 8px;">Forecasted Heat Index (T+1)</th>
-                <th style="border: 1px solid #000; padding: 8px;">Forecasted Heat Index (T+2)</th>
-                <th style="border: 1px solid #000; padding: 8px;">RMSE</th>
-                <th style="border: 1px solid #000; padding: 8px;">MAE</th>
-                <th style="border: 1px solid #000; padding: 8px;">R²</th>
+                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Station</th>
+                <th style="border: 1px solid #000; padding: 8px;">Latitude</th>
+                <th style="border: 1px solid #000; padding: 8px;">Longitude</th>
+                <th style="border: 1px solid #000; padding: 11px;">Forecasted Heat Index (T+1)</th>
+                <th style="border: 1px solid #000; padding: 11px;">Forecasted Heat Index (T+2)</th>
+                <th style="border: 1px solid #000; padding: 6px; width: 80px;">RMSE</th>
+                <th style="border: 1px solid #000; padding: 6px; width: 80px;">MAE</th>
+                <th style="border: 1px solid #000; padding: 6px; width: 80px;">R²</th>
               </tr>
             </thead>
             <tbody>
@@ -125,15 +126,17 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
         tableHTML += `
           <tr>
             <td style="border: 1px solid #000; padding: 6px; text-align: left;">${station.name}</td>
+            <td style="border: 1px solid #000; padding: 6px;">${station.latitude ? Number(station.latitude).toFixed(4) : 'N/A'}</td>
+            <td style="border: 1px solid #000; padding: 6px;">${station.longitude ? Number(station.longitude).toFixed(4) : 'N/A'}</td>
             <td style="border: 1px solid #000; padding: 6px; background-color: ${getHeatIndexColor(station.t_plus_one)};">
               ${station.t_plus_one}°C
             </td>
             <td style="border: 1px solid #000; padding: 6px; background-color: ${getHeatIndexColor(station.t_plus_two)};">
               ${station.t_plus_two}°C
             </td>
-            <td style="border: 1px solid #000; padding: 6px;">${station.rmse}</td>
-            <td style="border: 1px solid #000; padding: 6px;">${station.mae}</td>
-            <td style="border: 1px solid #000; padding: 6px;">${station.rsquared}</td>
+            <td style="border: 1px solid #000; padding: 6px; width: 80px;">${station.rmse}</td>
+            <td style="border: 1px solid #000; padding: 6px; width: 80px;">${station.mae}</td>
+            <td style="border: 1px solid #000; padding: 6px; width: 80px;">${station.rsquared}</td>
           </tr>
         `;
       });
@@ -152,21 +155,26 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
       const canvas = await html2canvas(container, { scale: 2 });
       const imgData = canvas.toDataURL("image/png");
 
-      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "a4" });
 
-      const imgWidth = 297; // A4 landscape width in mm
+      // No margins
+      const margin = 0;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      const imgWidth = pageWidth - (2 * margin);
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
-      let position = 0;
+      let position = margin;
 
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= 210;
+      pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
+      heightLeft -= (pageHeight - (2 * margin));
 
       while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
+        position = heightLeft - imgHeight + margin;
         pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= 210;
+        pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
+        heightLeft -= (pageHeight - (2 * margin));
       }
 
       pdf.save(`alab-ph-heat-index-report-${selectedDate}.pdf`);
