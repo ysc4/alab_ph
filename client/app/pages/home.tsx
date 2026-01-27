@@ -300,15 +300,15 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
         key={card.title}
         className="bg-white rounded-xl shadow-sm p-4 md:p-5 flex flex-col items-center text-center"
       >
-        <h2 className="text-xl font-medium text-text-primary mb-0.5 leading-tight">
+        <h2 className="text-base font-medium text-text-primary mb-0.5 leading-tight">
           {card.title}
         </h2>
 
-        <h1 className="text-[40px] md:text-[64px] font-bold leading-none mt-2 mb-4 text-primary">
+        <h1 className="text-[32px] md:text-[52px] font-bold leading-none mt-2 mb-4 text-primary">
           {card.value}
         </h1>
 
-        <p className="text-[16px] italic text-text-muted">
+        <p className="text-sm italic text-text-muted">
           {card.subtext}
         </p>
       </div>

@@ -252,18 +252,18 @@ const Station: React.FC<{
             key={item.title}
             className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center text-center"
           >
-            <h2 className="text-[24px] font-semibold text-text-primary">
+            <h2 className="text-lg font-semibold text-text-primary">
               {item.title}
             </h2>
-            <h1 className="text-[70px] font-bold leading-none mt-2 mb-4 text-primary">
+            <h1 className="text-[56px] font-bold leading-none mt-2 mb-4 text-primary">
               {item.value}
             </h1>
-            <p className="text-[16px] italic text-text-muted">{item.sub}</p>
+            <p className="text-sm italic text-text-muted">{item.sub}</p>
           </div>
         ))}
 
         <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col">
-          <h2 className="text-[24px] font-semibold mb-1 text-center">Model Confidence</h2>
+          <h2 className="text-[16px] font-semibold mb-1 text-center">Model Confidence</h2>
           <div className="grid grid-cols-2 gap-8">
             {[
               { 
@@ -305,13 +305,13 @@ const Station: React.FC<{
             key={index}
             className="bg-white rounded-xl shadow-sm p-6 text-center"
           >
-            <div className="text-2xl font-semibold">
+            <div className="text-xl font-semibold">
               {index === 0 ? "Tomorrow" : "Day After Tomorrow"}
             </div>
             <div className="text-sm text-gray-500">
               {formatDate(forecast.date)}
             </div>
-            <div className="text-6xl font-bold text-primary mt-3">
+            <div className="text-5xl font-bold text-primary mt-3">
               {forecast.temp ? `${Number(forecast.temp).toFixed(1)}°C` : "N/A"}
             </div>
           </div>
