@@ -218,21 +218,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
       .catch(err => console.error("Error fetching home summary:", err));
   }, [selectedDate, refreshTrigger]);
 
-  // Fetch nationwide heat index trend
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/nationwide-trend?range=${heatIndexPeriod}&date=${selectedDate}`)
-      .then(async res => {
-        if (!res.ok) {
-          const text = await res.text();
-          console.error('Trend response error:', text);
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then(data => setAverageHeatIndexData(data))
-      .catch(err => console.error("Error fetching heat index trend:", err));
-  }, [heatIndexPeriod, selectedDate, refreshTrigger]);
-
+  
   // Fetch forecast error data
   useEffect(() => {
     fetch(`${API_BASE_URL}/forecast-error?range=${forecastErrorPeriod}&date=${selectedDate}`)
