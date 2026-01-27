@@ -60,7 +60,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
   
   // State for API data
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
-  const [averageHeatIndexData, setAverageHeatIndexData] = useState<AverageHI[]>([]);
+  // Removed averageHeatIndexData, use summaryData instead
   const [forecastErrorData, setForecastErrorData] = useState<ForecastError[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [synopticData, setSynopticData] = useState<SynopticData[]>([]);
@@ -218,20 +218,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
       .catch(err => console.error("Error fetching home summary:", err));
   }, [selectedDate, refreshTrigger]);
 
-  // Fetch nationwide heat index trend
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/nationwide-trend?range=${heatIndexPeriod}&date=${selectedDate}`)
-      .then(async res => {
-        if (!res.ok) {
-          const text = await res.text();
-          console.error('Trend response error:', text);
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then(data => setAverageHeatIndexData(data))
-      .catch(err => console.error("Error fetching heat index trend:", err));
-  }, [heatIndexPeriod, selectedDate, refreshTrigger]);
+  // Removed averageHeatIndexData fetching
 
   // Fetch forecast error data
   useEffect(() => {
@@ -335,19 +322,13 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
           <Toggle options={["Week", "Month"]} onSelect={(selected) => setHeatIndexPeriod(selected as "Week" | "Month")} />
         </div>
         <div className="flex-1 w-full">
-          {averageHeatIndexData.length > 0 ? (
+          {summaryData ? (
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={averageHeatIndexData.map((d) => {
-                // For the selected date, add model and pagasa forecasted from summaryData
-                if (summaryData && d.day && selectedDate && d.day === selectedDate.slice(-2)) {
-                  return {
-                    ...d,
-                    avg_model_forecasted: summaryData.avg_model_forecasted,
-                    avg_pagasa_forecasted: summaryData.avg_pagasa_forecasted,
-                  };
-                }
-                return d;
-              })}>
+              <LineChart data={[{
+                day: selectedDate?.slice(-2) || '',
+                avg_model_forecasted: summaryData.avg_model_forecasted ?? 0,
+                avg_pagasa_forecasted: summaryData.avg_pagasa_forecasted ?? 0,
+              }]}> 
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
                 <YAxis />
@@ -377,17 +358,15 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
             </div>
           )}
         </div>
-      </div>
-
-      <div className="p-6 bg-white rounded-xl shadow flex flex-col">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-2xl font-extrabold">Absolute Forecast Error</h2>
-          <Toggle options={["Week", "Month"]} onSelect={(selected) => setForecastErrorPeriod(selected as "Week" | "Month")} />
         </div>
         <div className="flex-1 w-full">
-          {forecastErrorData.length > 0 ? (
+          {summaryData && (summaryData.avg_1day_abs_error !== undefined || summaryData.avg_2day_abs_error !== undefined) ? (
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={forecastErrorData}>
+              <LineChart data={[{
+                day: selectedDate?.slice(-2) || '',
+                t_plus_one: summaryData.avg_1day_abs_error ?? 0,
+                t_plus_two: summaryData.avg_2day_abs_error ?? 0,
+              }]}> 
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
                 <YAxis />
@@ -512,8 +491,6 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
       </div>
     </div>
   </div>
-
-</div>
 
   );
 });
