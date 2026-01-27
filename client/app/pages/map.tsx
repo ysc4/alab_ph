@@ -4,7 +4,7 @@ import { useLoadScript, GoogleMap, HeatmapLayer } from "@react-google-maps/api";
 import { useState, useEffect } from "react";
 import StationMarker from "../components/station-marker";
 
-const API_BASE_URL = "http://localhost:4001/api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 interface MapProps {
   selectedDate: string;
@@ -47,7 +47,7 @@ const getTemperatureWeight = (temp: number): number => {
 export default function HeatMapDummy({ selectedDate }: MapProps) {
   const { isLoaded } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
-    libraries: ["visualization"],
+    libraries: ["visualization", "marker"],
   });
 
   const [heatmapData, setHeatmapData] = useState<google.maps.visualization.WeightedLocation[]>([]);
@@ -55,6 +55,7 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
   const [openMarker, setOpenMarker] = useState<number | null>(null);
   const [stationDetails, setStationDetails] = useState<StationDetailData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
 
   useEffect(() => {
     const fetchStations = async () => {
@@ -174,6 +175,10 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
         mapContainerStyle={{ width: "100%", height: "100%" }}
         center={{ lat: 12.8797, lng: 121.774 }}
         zoom={5}
+        onLoad={(map) => {
+          setMapInstance(map);
+          (window as any).__GOOGLE_MAP_INSTANCE__ = map;
+        }}
       >
         {heatmapData.length > 0 && (
           <HeatmapLayer
