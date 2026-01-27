@@ -165,49 +165,57 @@ router.get("/forecast-error", async (req, res) => {
 /**
  * Synoptics Table Route
  */
+
 router.get("/stations-table", async (req, res) => {
   try {
     const pool = getDB();
-    const { date } = req.query;
-    
+    const { date, limit = '100', offset = '0' } = req.query;
+    const limitNum = parseInt(limit as string);
+    const offsetNum = parseInt(offset as string);
+
+    const query = date
+      ? `SELECT
+          s.station AS name,
+          ROUND(COALESCE(h.model_forecasted, 1)::numeric, 1) AS heat_index,
+          COALESCE(c.level, 'N/A') AS risk_level,
+          ROUND(COALESCE(h.trend, 0)::numeric, 1) AS trend
+        FROM heat_index h
+        JOIN stations s ON s.id = h.station
+        LEFT JOIN classification c ON h.model_forecasted >= c.min_temp AND h.model_forecasted < CAST(c.max_temp AS NUMERIC) + 1
+        WHERE h.date = $1
+        ORDER BY s.station
+        LIMIT $2 OFFSET $3`
+      : `SELECT DISTINCT ON (h.station)
+          s.station AS name,
+          ROUND(COALESCE(h.model_forecasted, 1)::numeric, 1) AS heat_index,
+          COALESCE(c.level, 'N/A') AS risk_level,
+          ROUND(COALESCE(h.trend, 0)::numeric, 1) AS trend
+        FROM heat_index h
+        JOIN stations s ON s.id = h.station
+        LEFT JOIN classification c ON h.model_forecasted >= c.min_temp AND h.model_forecasted < CAST(c.max_temp AS NUMERIC) + 1
+        ORDER BY h.station, h.date DESC
+        LIMIT $1 OFFSET $2`;
+
     const result = await pool.query(
-      `SELECT
-        c.level AS name,
-        COUNT(DISTINCT h.station) AS value
-      FROM heat_index h
-      JOIN classification c
-        ON h.actual >= c.min_temp AND h.actual < CAST(c.max_temp AS NUMERIC) + 1
-      WHERE h.date = $1
-      GROUP BY c.level`,
-      date ? [date] : []
+      query,
+      date ? [date, limitNum, offsetNum] : [limitNum, offsetNum]
     );
 
-    const colorMap: { [key: string]: string } = {
-      'Caution': '#FFD700',
-      'Extreme Caution': '#FFA500',
-      'Danger': '#FF4500',
-      'Extreme Danger': '#8B0000'
-    };
-
-    const sortOrder: { [key: string]: number } = {
-      'Caution': 1,
-      'Extreme Caution': 2,
-      'Danger': 3,
-      'Extreme Danger': 4
-    };
-
-    const formatted = result.rows
-      .map(row => ({
-        name: row.name,
-        value: row.value ? Number(row.value) : 0,
-        color: colorMap[row.name] || '#999999'
-      }))
-      .sort((a, b) => (sortOrder[a.name] || 999) - (sortOrder[b.name] || 999));
+    const formatted = result.rows.map(row => ({
+      name: row.name,
+      heat_index: Number(row.heat_index),
+      risk_level: row.risk_level,
+      trend: row.trend !== null && row.trend !== undefined
+        ? (Number(row.trend) > 0
+            ? `+${Number(row.trend).toFixed(1)}°C`
+            : `${Number(row.trend).toFixed(1)}°C`)
+        : null
+    }));
 
     res.json(formatted);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to load synoptics table" });
+    res.status(500).json({ error: "Failed to load stations table" });
   }
 });
 
