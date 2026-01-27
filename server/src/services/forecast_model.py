@@ -1,155 +1,132 @@
 #!/usr/bin/env python3
 """
-XGBoost Heat Index Forecast Model
-Generates forecasts for tomorrow (T+1) and day after tomorrow (T+2)
+Heat Index Forecast Worker
+Outputs:
+1) JSON array of forecasts
+2) JSON object with abs_errors
 """
 
 import sys
 import json
-import pickle
 import os
+import pickle
 from datetime import datetime, timedelta
+
 import numpy as np
 import pandas as pd
 import psycopg2
 import psycopg2.extras
 
-# ------------------------------------------------------------------
-# Model loading
-# ------------------------------------------------------------------
+# --------------------------------------------------
+# Config
+# --------------------------------------------------
+
+BASE_DIR = os.path.dirname(__file__)
+MODEL_PATH = os.path.join(BASE_DIR, "../models/model.pkl")
+DATA_PATH = os.path.join(BASE_DIR, "df_test_final.csv")
+
+DB_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/postgres"
+)
+
+# --------------------------------------------------
+# Helpers
+# --------------------------------------------------
 
 def load_model():
-    model_path = os.path.join(os.path.dirname(__file__), "../models/model.pkl")
-    try:
-        with open(model_path, "rb") as f:
-            import warnings
-            warnings.filterwarnings("ignore")
-            return pickle.load(f)
-    except Exception as e:
-        print(json.dumps({"error": f"Failed to load model: {str(e)}"}), file=sys.stderr)
-        sys.exit(1)
+    with open(MODEL_PATH, "rb") as f:
+        return pickle.load(f)
 
-def get_db_connection():
-    db_url = os.environ.get(
-        "DATABASE_URL",
-        "postgresql://postgres:postgres@localhost:5432/postgres"
-    )
-    try:
-        return psycopg2.connect(db_url)
-    except Exception as e:
-        print(json.dumps({"error": f"Failed to connect to database: {str(e)}"}), file=sys.stderr)
-        sys.exit(1)
+def get_db():
+    return psycopg2.connect(DB_URL)
 
-def prepare_features(station_id, df_val, station_coords):
-    """
-    Prepare the exact 67 features required by the model
-    Uses the most recent March–May 2023 record for the given station
-    """
+def prepare_features(station_id, df, station_coords):
+    df = df.copy()
+    df["Date"] = pd.to_datetime(df["Date"])
 
-    df_val = df_val.copy()
-    df_val["Date"] = pd.to_datetime(df_val["Date"])
-
-    df_filtered = df_val[
-        (df_val["Date"] >= "2023-03-01") &
-        (df_val["Date"] <= "2023-05-31")
-    ]
+    df = df[(df["Date"] >= "2023-03-01") & (df["Date"] <= "2023-05-31")]
 
     if station_id in station_coords:
         lat, lon = station_coords[station_id]
-        station_data = df_filtered[
-            (abs(df_filtered["Latitude"] - lat) < 0.001) &
-            (abs(df_filtered["Longitude"] - lon) < 0.001)
+        row = df[
+            (abs(df["Latitude"] - lat) < 0.001) &
+            (abs(df["Longitude"] - lon) < 0.001)
         ].tail(1)
     else:
-        station_data = pd.DataFrame()
+        row = df.tail(1)
 
-    if station_data.empty:
-        station_data = df_filtered.tail(1)
+    if row.empty:
+        raise ValueError("No data for station")
 
-    def get_val(col):
-        return float(station_data[col].iloc[0])
+    def v(c): return float(row[c].iloc[0])
 
-    features = []
+    T = v("TMAX")
+    RH = v("RH")
+    W = v("WIND_SPEED")
 
-    # 1–4
-    features += [get_val("TMAX"), get_val("TMIN"), get_val("RH"), get_val("WIND_SPEED")]
+    features = [
+        # 1–4
+        v("TMAX"), v("TMIN"), RH, W,
 
-    # 5–9
-    features += [
-        get_val("Albedo_linear"),
-        get_val("skin_temperature_min_C"),
-        get_val("skin_temperature_max_C"),
-        get_val("NDBI_linear"),
-        get_val("NDVI_original"),
-    ]
+        # 5–9
+        v("Albedo_linear"),
+        v("skin_temperature_min_C"),
+        v("skin_temperature_max_C"),
+        v("NDBI_linear"),
+        v("NDVI_original"),
 
-    # 10–13
-    features += [
-        get_val("Latitude"),
-        get_val("Longitude"),
-        get_val("Elevation"),
+        # 10–13
+        v("Latitude"),
+        v("Longitude"),
+        v("Elevation"),
         float(station_id),
-    ]
 
-    # 14–15
-    features += [get_val("Temperature_at_RH"), get_val("Max_HI")]
+        # 14–15
+        v("Temperature_at_RH"),
+        v("Max_HI"),
 
-    # 16–19
-    features += [
-        get_val("is_dry_season"),
-        get_val("is_wet_season"),
-        get_val("is_cool_dry_season"),
-        get_val("is_hot_dry_season"),
-    ]
+        # 16–19
+        v("is_dry_season"),
+        v("is_wet_season"),
+        v("is_cool_dry_season"),
+        v("is_hot_dry_season"),
 
-    # 20–23
-    features += [
-        get_val("U_wind_component"),
-        get_val("V_wind_component"),
-        get_val("Temp_Range"),
-        get_val("Temp_Mean"),
-    ]
+        # 20–23
+        v("U_wind_component"),
+        v("V_wind_component"),
+        v("Temp_Range"),
+        v("Temp_Mean"),
 
-    # 24–27
-    features += [
-        get_val("Month_sin"),
-        get_val("Month_cos"),
-        get_val("Day_of_Year_sin"),
-        get_val("Day_of_Year_cos"),
-    ]
+        # 24–27
+        v("Month_sin"),
+        v("Month_cos"),
+        v("Day_of_Year_sin"),
+        v("Day_of_Year_cos"),
 
-    # 28–36
-    features += [
-        get_val("TMAX_Rolling_Mean_7"),
-        get_val("TMAX_Rolling_Max_7"),
-        get_val("TMIN_Rolling_Mean_7"),
-        get_val("TMIN_Rolling_Max_7"),
-        get_val("Max_HI_Rolling_Mean_7"),
-        get_val("Max_HI_Rolling_Max_7"),
-        get_val("Max_HI_Rolling_Min_7"),
-        get_val("RH_Rolling_Mean_7"),
-        get_val("RH_Rolling_Min_7"),
-    ]
+        # 28–36
+        v("TMAX_Rolling_Mean_7"),
+        v("TMAX_Rolling_Max_7"),
+        v("TMIN_Rolling_Mean_7"),
+        v("TMIN_Rolling_Max_7"),
+        v("Max_HI_Rolling_Mean_7"),
+        v("Max_HI_Rolling_Max_7"),
+        v("Max_HI_Rolling_Min_7"),
+        v("RH_Rolling_Mean_7"),
+        v("RH_Rolling_Min_7"),
 
-    # 37–45
-    features += [
-        get_val("TMAX_Rolling_Mean_30"),
-        get_val("TMAX_Rolling_Max_30"),
-        get_val("TMIN_Rolling_Mean_30"),
-        get_val("TMIN_Rolling_Max_30"),
-        get_val("Max_HI_Rolling_Mean_30"),
-        get_val("Max_HI_Rolling_Max_30"),
-        get_val("Max_HI_Rolling_Min_30"),
-        get_val("RH_Rolling_Mean_30"),
-        get_val("RH_Rolling_Min_30"),
-    ]
+        # 37–45
+        v("TMAX_Rolling_Mean_30"),
+        v("TMAX_Rolling_Max_30"),
+        v("TMIN_Rolling_Mean_30"),
+        v("TMIN_Rolling_Max_30"),
+        v("Max_HI_Rolling_Mean_30"),
+        v("Max_HI_Rolling_Max_30"),
+        v("Max_HI_Rolling_Min_30"),
+        v("RH_Rolling_Mean_30"),
+        v("RH_Rolling_Min_30"),
 
-    # 46–52 interactions
-    T = get_val("TMAX")
-    RH = get_val("RH")
-    W = get_val("WIND_SPEED")
-
-    features += [
+        # 46–52 interactions
         T**2,
         RH**2,
         T * RH,
@@ -161,25 +138,34 @@ def prepare_features(station_id, df_val, station_coords):
 
     # 53–63 Temperature_at_RH lags
     for lag in [1,2,3,4,5,6,8,10,11,12,13]:
-        features.append(get_val(f"Temperature_at_RH_lag_{lag}"))
+        features.append(v(f"Temperature_at_RH_lag_{lag}"))
 
     # 64–65 Max_HI lags
-    features += [get_val("Max_HI_lag_1"), get_val("Max_HI_lag_2")]
+    features += [v("Max_HI_lag_1"), v("Max_HI_lag_2")]
 
     # 66–67 RH lags
-    features += [get_val("RH_lag_1"), get_val("RH_lag_5")]
+    features += [v("RH_lag_1"), v("RH_lag_5")]
 
     return np.array(features).reshape(1, -1)
 
-def generate_forecasts(date_str):
+# --------------------------------------------------
+# Main
+# --------------------------------------------------
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit(1)
+
+    base_date = datetime.strptime(sys.argv[1], "%Y-%m-%d")
+    t1 = (base_date + timedelta(days=1)).strftime("%Y-%m-%d")
+    t2 = (base_date + timedelta(days=2)).strftime("%Y-%m-%d")
+
     model = load_model()
-    conn = get_db_connection()
+    df = pd.read_csv(DATA_PATH)
 
-    df_val = pd.read_csv(
-        os.path.join(os.path.dirname(__file__), "df_test_final.csv")
-    )
-
+    conn = get_db()
     forecasts = []
+    abs_errors = []
 
     with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
         cur.execute("SELECT id, latitude, longitude FROM stations ORDER BY id")
@@ -189,39 +175,40 @@ def generate_forecasts(date_str):
 
     for s in stations:
         sid = s["id"]
-        try:
-            x = prepare_features(sid, df_val, station_coords)
-            pred = float(model.predict(x)[0])
+        x = prepare_features(sid, df, station_coords)
 
-            pred = round(max(27.0, min(55.0, pred)), 2)
+        pred = float(model.predict(x)[0])
+        pred = round(max(27.0, min(55.0, pred)), 2)
 
-            forecasts.append({
-                "station_id": sid,
-                "tomorrow": pred,
-                "day_after_tomorrow": pred
-            })
-        except Exception as e:
-            print(json.dumps({
-                "warning": f"Station {sid} failed",
-                "error": str(e)
-            }), file=sys.stderr)
+        forecasts.append({
+            "station_id": sid,
+            "tomorrow": pred,
+            "day_after_tomorrow": pred
+        })
+
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(
+                "SELECT actual FROM heat_index WHERE station = %s AND date = %s",
+                (sid, t1)
+            )
+            r1 = cur.fetchone()
+
+            cur.execute(
+                "SELECT actual FROM heat_index WHERE station = %s AND date = %s",
+                (sid, t2)
+            )
+            r2 = cur.fetchone()
+
+        abs_errors.append({
+            "station_id": sid,
+            "abs_error_1d": abs(pred - r1["actual"]) if r1 else None,
+            "abs_error_2d": abs(pred - r2["actual"]) if r2 else None
+        })
 
     conn.close()
-    return forecasts
 
-def main():
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "Date argument required YYYY-MM-DD"}), file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        datetime.strptime(sys.argv[1], "%Y-%m-%d")
-    except ValueError:
-        print(json.dumps({"error": "Invalid date format"}), file=sys.stderr)
-        sys.exit(1)
-
-    forecasts = generate_forecasts(sys.argv[1])
     print(json.dumps(forecasts))
+    print(json.dumps({"abs_errors": abs_errors}))
 
 if __name__ == "__main__":
     main()
