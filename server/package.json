@@ -4,7 +4,7 @@
   "type": "commonjs",
   "scripts": {
     "dev": "ts-node src/index.ts",
-    "build": "tsc && cp -r src/services dist/",
+    "build": "tsc && cp -r src/services dist/ && cp -r src/models dist/",
     "start": "pip install -q -r requirements.txt 2>/dev/null; node dist/index.js"
   },
   "dependencies": {
