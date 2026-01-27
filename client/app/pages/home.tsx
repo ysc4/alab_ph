@@ -223,7 +223,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
 
   // Fetch forecast error data
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/forecast-error?range=${forecastErrorPeriod}&date=${selectedDate}`)
+    fetch(`${API_BASE_URL}/forecast-error?range=${forecastErrorPeriod}&date=${selectedDate}`)
       .then(async res => {
         if (!res.ok) {
           const text = await res.text();
