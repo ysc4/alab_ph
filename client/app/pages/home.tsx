@@ -41,6 +41,10 @@ interface SummaryData {
   danger_count: number;
   fastest_increasing_station: string;
   fastest_increasing_trend: number;
+  avg_model_forecasted: number;
+  avg_pagasa_forecasted: number;
+  avg_1day_abs_error: number;
+  avg_2day_abs_error: number;
 }
 
 interface HomeProps {
@@ -333,17 +337,37 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
         <div className="flex-1 w-full">
           {averageHeatIndexData.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={averageHeatIndexData}>
+              <LineChart data={averageHeatIndexData.map((d) => {
+                // For the selected date, add model and pagasa forecasted from summaryData
+                if (summaryData && d.day && selectedDate && d.day === selectedDate.slice(-2)) {
+                  return {
+                    ...d,
+                    avg_model_forecasted: summaryData.avg_model_forecasted,
+                    avg_pagasa_forecasted: summaryData.avg_pagasa_forecasted,
+                  };
+                }
+                return d;
+              })}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
                 <YAxis />
                 <Tooltip />
                 <Legend />
                 <Line
-                type="monotone"
-                dataKey="observed"
-                stroke="#1666BA"
-                name="Observed"
+                  type="monotone"
+                  dataKey="avg_model_forecasted"
+                  stroke="#F59E42"
+                  name="Average Model Forecasted"
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="avg_pagasa_forecasted"
+                  stroke="#B91C1C"
+                  name="Average PAGASA Forecasted"
+                  dot={false}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
