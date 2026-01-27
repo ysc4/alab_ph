@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Heat Index Forecast Worker (DB-free)
+Heat Index Forecast Worker (DB-free, joblib model)
 
 Outputs:
 1) JSON array of forecasts
@@ -13,13 +13,13 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from joblib import load  # joblib for .pkl model
+from joblib import load  # correct loader for joblib .pkl
 
 # --------------------------------------------------
 # Config
 # --------------------------------------------------
 
-BASE_DIR = os.path.dirname(__file__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "../models/model.pkl")
 DATA_PATH = os.path.join(BASE_DIR, "df_test_final.csv")
 
@@ -28,7 +28,9 @@ DATA_PATH = os.path.join(BASE_DIR, "df_test_final.csv")
 # --------------------------------------------------
 
 def load_model():
-    """Load the trained XGBoost model using joblib"""
+    """Load trained model saved via joblib"""
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(f"Model not found at {MODEL_PATH}")
     return load(MODEL_PATH)
 
 def prepare_features(station_id, df):
@@ -38,13 +40,14 @@ def prepare_features(station_id, df):
     # March–May 2023 only
     df = df[(df["Date"] >= "2023-03-01") & (df["Date"] <= "2023-05-31")]
 
-    # Filter rows for this station using station_id
+    # Latest row per station
     row = df[df["station_id"] == station_id].tail(1)
 
     if row.empty:
         raise ValueError(f"No data for station {station_id}")
 
-    def v(c): return float(row[c].iloc[0])
+    def v(col):
+        return float(row[col].iloc[0])
 
     T = v("TMAX")
     RH = v("RH")
@@ -122,16 +125,18 @@ def prepare_features(station_id, df):
     ]
 
     # 53–63 Temperature_at_RH lags
-    for lag in [1,2,3,4,5,6,8,10,11,12,13]:
+    for lag in [1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 13]:
         features.append(v(f"Temperature_at_RH_lag_{lag}"))
 
     # 64–65 Max_HI lags
-    features += [v("Max_HI_lag_1"), v("Max_HI_lag_2")]
+    features.append(v("Max_HI_lag_1"))
+    features.append(v("Max_HI_lag_2"))
 
     # 66–67 RH lags
-    features += [v("RH_lag_1"), v("RH_lag_5")]
+    features.append(v("RH_lag_1"))
+    features.append(v("RH_lag_5"))
 
-    return np.array(features).reshape(1, -1)
+    return np.array(features, dtype=np.float32).reshape(1, -1)
 
 # --------------------------------------------------
 # Main
@@ -141,7 +146,7 @@ def main():
     if len(sys.argv) < 2:
         sys.exit(1)
 
-    # Validate date only (used by API, not model)
+    # Validate date input (API requirement only)
     datetime.strptime(sys.argv[1], "%Y-%m-%d")
 
     model = load_model()
@@ -153,6 +158,8 @@ def main():
     for sid in station_ids:
         x = prepare_features(sid, df)
         pred = float(model.predict(x)[0])
+
+        # Clamp realistic Heat Index bounds
         pred = round(max(27.0, min(55.0, pred)), 2)
 
         forecasts.append({
