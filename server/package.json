@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "ts-node src/index.ts",
     "build": "tsc && cp -r src/services dist/",
-    "start": "node dist/index.js"
+    "start": "pip install -q -r requirements.txt 2>/dev/null; node dist/index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
