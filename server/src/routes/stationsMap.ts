@@ -23,7 +23,7 @@ const getStationQuery = (stationFilter: string) => `
     SELECT *
     FROM heat_index
     WHERE station = s.id
-    AND ($1::text IS NULL OR date = $1)
+    AND ($1::text IS NULL OR date::text = $1)
     ORDER BY date DESC
     LIMIT 1
   ) hi ON true
