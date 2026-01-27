@@ -169,15 +169,7 @@ router.get("/stations-table", async (req, res) => {
   try {
     const pool = getDB();
     const { date } = req.query;
-
-    const dateCondition = date
-      ? 'h.date = $1'
-      : `h.date = (
-          SELECT MAX(date)
-          FROM heat_index hi
-          WHERE hi.station = h.station
-        )`;
-
+    
     const result = await pool.query(
       `SELECT
         c.level AS name,
@@ -185,7 +177,7 @@ router.get("/stations-table", async (req, res) => {
       FROM heat_index h
       JOIN classification c
         ON h.actual >= c.min_temp AND h.actual < CAST(c.max_temp AS NUMERIC) + 1
-      WHERE ${dateCondition}
+      WHERE h.date = $1
       GROUP BY c.level`,
       date ? [date] : []
     );
