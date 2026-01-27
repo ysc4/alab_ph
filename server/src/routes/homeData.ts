@@ -44,17 +44,6 @@ router.get("/home-summary", async (req, res) => {
       ),
       pool.query(
         `SELECT
-          date,
-          ROUND(AVG("1day_abs_error")::numeric, 2) AS avg_1day_abs_error,
-          ROUND(AVG("2day_abs_error")::numeric, 2) AS avg_2day_abs_error
-        FROM model_heat_index
-        WHERE ${dateCondition}
-        GROUP BY date
-        ORDER BY date`,
-        date ? [date] : []
-      ),
-      pool.query(
-        `SELECT
           c.level AS name,
           COUNT(DISTINCT h.station) AS value
         FROM heat_index h
