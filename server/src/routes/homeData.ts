@@ -17,19 +17,29 @@ router.get("/home-summary", async (req, res) => {
           WHERE hi.station = h.station
         )`;
 
-    // Fetch both summary and synoptic data in parallel
-    const [summaryResult, synopticResult] = await Promise.all([
+    // Fetch both summary, pagasa/model averages, and synoptic data in parallel
+    const [summaryResult, pagasaModelAvgResult, synopticResult] = await Promise.all([
       pool.query(
         `SELECT DISTINCT ON (mh.station)
           mh.station,
           s.station AS station_name,
           ${roundNumeric('mh.tomorrow', 0)} AS forecasted,
-          ${roundNumeric('h.trend', 0)} as trend
+          ${roundNumeric('h.trend', 0)} as trend,
+          ${roundNumeric('h.model_forecasted', 0)} as model_forecasted,
+          ${roundNumeric('h.pagasa_forecasted', 0)} as pagasa_forecasted
         FROM model_heat_index mh
         JOIN stations s ON s.id = mh.station
         LEFT JOIN heat_index h ON h.station = mh.station AND h.date = mh.date
         ${date ? 'WHERE mh.date = $1' : ''}
         ORDER BY mh.station, mh.date DESC`,
+        date ? [date] : []
+      ),
+      pool.query(
+        `SELECT
+          ROUND(AVG(h.model_forecasted)::numeric, 2) AS avg_model_forecasted,
+          ROUND(AVG(h.pagasa_forecasted)::numeric, 2) AS avg_pagasa_forecasted
+        FROM heat_index h
+        WHERE ${dateCondition}`,
         date ? [date] : []
       ),
       pool.query(
@@ -62,12 +72,15 @@ router.get("/home-summary", async (req, res) => {
       const min = Math.min(...forecasts);
       const avg = Math.round((forecasts.reduce((a, b) => a + b, 0) / forecasts.length) * 100) / 100;
       const danger_count = stations.filter(s => Number(s.forecasted) >= 41).length;
-      
       const maxStation = stations.find(s => Number(s.forecasted) === max);
       const minStation = stations.find(s => Number(s.forecasted) === min);
       const fastestStation = stations.reduce((prev, current) => 
         Number(current.trend) > Number(prev.trend) ? current : prev
       );
+
+      // Get Luzonwide averages
+      const avg_model_forecasted = pagasaModelAvgResult.rows[0]?.avg_model_forecasted ?? 0;
+      const avg_pagasa_forecasted = pagasaModelAvgResult.rows[0]?.avg_pagasa_forecasted ?? 0;
 
       summary = {
         max,
@@ -75,6 +88,8 @@ router.get("/home-summary", async (req, res) => {
         min,
         min_station: minStation?.station_name || '',
         avg,
+        avg_model_forecasted,
+        avg_pagasa_forecasted,
         danger_count,
         fastest_increasing_station: fastestStation.station_name,
         fastest_increasing_trend: Math.round(Number(fastestStation.trend) * 10) / 10
@@ -144,9 +159,10 @@ router.get("/nationwide-trend", async (req, res) => {
     const { range, date } = req.query;
     const dateCondition = getDateRangeCondition(date as string, range as string);
 
-    const result = await pool.query(`
+    // Only show trend for the selected date, 0 for following days
+    const trendResult = await pool.query(`
       SELECT
-        TO_CHAR(date, 'DD') AS day,
+        TO_CHAR(date, 'YYYY-MM-DD') AS date,
         ROUND(AVG(actual)::numeric, 2) AS observed
       FROM heat_index
       WHERE ${dateCondition}
@@ -154,7 +170,14 @@ router.get("/nationwide-trend", async (req, res) => {
       ORDER BY date
     `);
 
-    res.json(result.rows);
+    let trend = trendResult.rows;
+    if (date) {
+      trend = trend.map(row => ({
+        ...row,
+        observed: row.date === date ? row.observed : 0
+      }));
+    }
+    res.json(trend);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to load nationwide trend" });
