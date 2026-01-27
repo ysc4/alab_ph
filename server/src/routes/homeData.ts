@@ -193,8 +193,7 @@ router.get("/stations-table", async (req, res) => {
         ON ht.station = mh.station
       AND ht.date = mh.date + INTERVAL '1 day'
       LEFT JOIN classification c
-        ON mh.tomorrow >= c.min_temp
-      AND mh.tomorrow < CAST(c.max_temp AS NUMERIC) + 1
+        ON mh.tomorrow < c.max_temp AND (c.min_temp IS NULL OR mh.tomorrow >= c.min_temp)
       WHERE mh.date = $1
       ORDER BY s.station
     `;
