@@ -175,6 +175,9 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
         mapContainerStyle={{ width: "100%", height: "100%" }}
         center={{ lat: 12.8797, lng: 121.774 }}
         zoom={5}
+        options={{
+          mapId: process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID,
+        }}
         onLoad={(map) => {
           setMapInstance(map);
           (window as any).__GOOGLE_MAP_INSTANCE__ = map;
