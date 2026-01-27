@@ -354,7 +354,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[400px]">
+            <div className="flex items-center justify-center h-100">
               <p className="text-gray-500">No data available for the selected period</p>
             </div>
           )}
@@ -380,7 +380,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[400px]">
+            <div className="flex items-center justify-center h-100">
               <p className="text-gray-500">No data available for the selected period</p>
             </div>
           )}

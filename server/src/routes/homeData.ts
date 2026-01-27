@@ -18,7 +18,7 @@ router.get("/home-summary", async (req, res) => {
         )`;
 
     // Fetch both summary, pagasa/model averages, and synoptic data in parallel
-    const [summaryResult, pagasaModelAvgResult, absErrorResult, synopticResult] = await Promise.all([
+    const [summaryResult, pagasaModelAvgResult, synopticResult] = await Promise.all([
       pool.query(
         `SELECT DISTINCT ON (mh.station)
           mh.station,
@@ -77,8 +77,6 @@ router.get("/home-summary", async (req, res) => {
       fastest_increasing_trend: 0,
       avg_model_forecasted: 0,
       avg_pagasa_forecasted: 0,
-      avg_1day_abs_error: 0,
-      avg_2day_abs_error: 0
     };
 
     if (stations.length > 0) {
@@ -98,16 +96,7 @@ router.get("/home-summary", async (req, res) => {
       const avg_pagasa_forecasted = pagasaModelAvgResult.rows[0]?.avg_pagasa_forecasted ?? 0;
 
       // Compute average absolute forecast error for 1day and 2day, restrict to selected date
-      let avg_1day_abs_error = 0;
-      let avg_2day_abs_error = 0;
-      if (absErrorResult.rows && absErrorResult.rows.length > 0) {
-        absErrorResult.rows.forEach(row => {
-          if (!date || row.date === date) {
-            avg_1day_abs_error = Number(row.avg_1day_abs_error);
-            avg_2day_abs_error = Number(row.avg_2day_abs_error);
-          }
-        });
-      }
+  
       summary = {
         max,
         max_station: maxStation?.station_name || '',
@@ -116,8 +105,6 @@ router.get("/home-summary", async (req, res) => {
         avg,
         avg_model_forecasted,
         avg_pagasa_forecasted,
-        avg_1day_abs_error,
-        avg_2day_abs_error,
         danger_count,
         fastest_increasing_station: fastestStation.station_name,
         fastest_increasing_trend: Math.round(Number(fastestStation.trend) * 10) / 10
