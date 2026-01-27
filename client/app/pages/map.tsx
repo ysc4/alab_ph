@@ -60,10 +60,14 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    
     const fetchStations = async () => {
       try {
         console.log('Fetching stations with date:', selectedDate);
-        const response = await fetch(`${API_BASE_URL}/stations-map?date=${selectedDate}`);
+        const response = await fetch(`${API_BASE_URL}/stations-map?date=${selectedDate}`, {
+          signal: controller.signal
+        });
         console.log('Response status:', response.status);
         
         if (!response.ok) {
@@ -78,6 +82,10 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
         console.log('Station risk levels:', data.map((s: StationData) => ({ name: s.name, risk: s.risk_level })).slice(0, 5));
         setStationPoints(data);
       } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log('Fetch cancelled');
+          return;
+        }
         console.error("Error fetching stations:", error);
         // Set empty array so map still loads
         setStationPoints([]);
@@ -87,6 +95,8 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
     };
 
     fetchStations();
+    
+    return () => controller.abort();
   }, [selectedDate]);
 
   const handleStationMarkerClick = async (stationId: number) => {
