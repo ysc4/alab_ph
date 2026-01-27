@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 """
-Heat Index Forecast Worker
+Heat Index Forecast Worker (DB-free)
+
 Outputs:
 1) JSON array of forecasts
-2) JSON object with abs_errors
+2) JSON object with abs_errors (null since no DB)
 """
 
 import sys
 import json
 import os
 import pickle
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import psycopg2
-import psycopg2.extras
 
 # --------------------------------------------------
 # Config
@@ -25,11 +24,6 @@ BASE_DIR = os.path.dirname(__file__)
 MODEL_PATH = os.path.join(BASE_DIR, "../models/model.pkl")
 DATA_PATH = os.path.join(BASE_DIR, "df_test_final.csv")
 
-DB_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/postgres"
-)
-
 # --------------------------------------------------
 # Helpers
 # --------------------------------------------------
@@ -38,26 +32,18 @@ def load_model():
     with open(MODEL_PATH, "rb") as f:
         return pickle.load(f)
 
-def get_db():
-    return psycopg2.connect(DB_URL)
-
-def prepare_features(station_id, df, station_coords):
+def prepare_features(station_id, df):
     df = df.copy()
     df["Date"] = pd.to_datetime(df["Date"])
 
+    # March–May 2023 only
     df = df[(df["Date"] >= "2023-03-01") & (df["Date"] <= "2023-05-31")]
 
-    if station_id in station_coords:
-        lat, lon = station_coords[station_id]
-        row = df[
-            (abs(df["Latitude"] - lat) < 0.001) &
-            (abs(df["Longitude"] - lon) < 0.001)
-        ].tail(1)
-    else:
-        row = df.tail(1)
+    # Use latest row per station (by lat/lon group)
+    row = df[df["station_id"] == station_id].tail(1)
 
     if row.empty:
-        raise ValueError("No data for station")
+        raise ValueError(f"No data for station {station_id}")
 
     def v(c): return float(row[c].iloc[0])
 
@@ -156,56 +142,33 @@ def main():
     if len(sys.argv) < 2:
         sys.exit(1)
 
-    base_date = datetime.strptime(sys.argv[1], "%Y-%m-%d")
-    t1 = (base_date + timedelta(days=1)).strftime("%Y-%m-%d")
-    t2 = (base_date + timedelta(days=2)).strftime("%Y-%m-%d")
+    # Validate date only (used by API, not model)
+    datetime.strptime(sys.argv[1], "%Y-%m-%d")
 
     model = load_model()
     df = pd.read_csv(DATA_PATH)
 
-    conn = get_db()
     forecasts = []
     abs_errors = []
 
-    with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-        cur.execute("SELECT id, latitude, longitude FROM stations ORDER BY id")
-        stations = cur.fetchall()
+    station_ids = df["station_id"].unique()
 
-    station_coords = {s["id"]: (s["latitude"], s["longitude"]) for s in stations}
-
-    for s in stations:
-        sid = s["id"]
-        x = prepare_features(sid, df, station_coords)
-
+    for sid in station_ids:
+        x = prepare_features(sid, df)
         pred = float(model.predict(x)[0])
         pred = round(max(27.0, min(55.0, pred)), 2)
 
         forecasts.append({
-            "station_id": sid,
+            "station_id": int(sid),
             "tomorrow": pred,
             "day_after_tomorrow": pred
         })
 
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            cur.execute(
-                "SELECT actual FROM heat_index WHERE station = %s AND date = %s",
-                (sid, t1)
-            )
-            r1 = cur.fetchone()
-
-            cur.execute(
-                "SELECT actual FROM heat_index WHERE station = %s AND date = %s",
-                (sid, t2)
-            )
-            r2 = cur.fetchone()
-
         abs_errors.append({
-            "station_id": sid,
-            "abs_error_1d": abs(pred - r1["actual"]) if r1 else None,
-            "abs_error_2d": abs(pred - r2["actual"]) if r2 else None
+            "station_id": int(sid),
+            "abs_error_1d": None,
+            "abs_error_2d": None
         })
-
-    conn.close()
 
     print(json.dumps(forecasts))
     print(json.dumps({"abs_errors": abs_errors}))
