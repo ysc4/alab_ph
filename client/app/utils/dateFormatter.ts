@@ -22,8 +22,9 @@ export function getTrendSeries(
       const d = new Date(startOfMonth);
       d.setDate(i);
       const isAfter = d > selected;
-      const found = trendData?.find(td => new Date(td.date).getDate() === d.getDate());
-      const entry: any = { date: d.toISOString().slice(0, 10) };
+      const dateStr = d.toISOString().slice(0, 10);
+      const found = trendData?.find(td => td.date?.slice(0, 10) === dateStr);
+      const entry: any = { date: dateStr };
       for (const key of keys) {
         entry[key] = isAfter ? 0 : found?.[key] ?? 0;
       }
@@ -38,8 +39,9 @@ export function getTrendSeries(
       const d = new Date(startOfWeek);
       d.setDate(startOfWeek.getDate() + i);
       const isAfter = d > selected;
-      const found = trendData?.find(td => new Date(td.date).getDate() === d.getDate());
-      const entry: any = { date: d.toISOString().slice(0, 10) };
+      const dateStr = d.toISOString().slice(0, 10);
+      const found = trendData?.find(td => td.date?.slice(0, 10) === dateStr);
+      const entry: any = { date: dateStr };
       for (const key of keys) {
         entry[key] = isAfter ? 0 : found?.[key] ?? 0;
       }

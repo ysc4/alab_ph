@@ -7,10 +7,11 @@ const router = Router();
 /**
  * Home Summary Route
  */
+
 router.get("/home-summary", async (req, res) => {
   try {
     const pool = getDB();
-    const { date } = req.query;
+    const { date, range } = req.query;
 
     const dateCondition = date
       ? "h.date = $1"
@@ -20,7 +21,7 @@ router.get("/home-summary", async (req, res) => {
           WHERE hi.station = h.station
         )`;
 
-    const [summaryResult, pagasaModelAvgResult, synopticResult] =
+    const [summaryResult, synopticResult, trendResult] =
       await Promise.all([
         pool.query(
           `
@@ -43,17 +44,6 @@ router.get("/home-summary", async (req, res) => {
         pool.query(
           `
           SELECT
-            ROUND(AVG(h.model_forecasted)::numeric, 2) AS avg_model_forecasted,
-            ROUND(AVG(h.pagasa_forecasted)::numeric, 2) AS avg_pagasa_forecasted
-          FROM heat_index h
-          WHERE ${dateCondition}
-        `,
-          date ? [date] : []
-        ),
-
-        pool.query(
-          `
-          SELECT
             c.level AS name,
             COUNT(DISTINCT h.station) AS value
           FROM heat_index h
@@ -64,7 +54,23 @@ router.get("/home-summary", async (req, res) => {
           GROUP BY c.level
         `,
           date ? [date] : []
-        )
+        ),
+
+        // Trend query: daily average for the full month of the selected date
+        (() => {
+          if (!date) return pool.query('SELECT date, 0 as avg_model_forecasted, 0 as avg_pagasa_forecasted, 0 as observed WHERE false');
+          const d = new Date(date as string);
+          const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+          const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+          return pool.query(
+            `SELECT date, ROUND(AVG(model_forecasted)::numeric, 2) AS avg_model_forecasted, ROUND(AVG(pagasa_forecasted)::numeric, 2) AS avg_pagasa_forecasted, ROUND(AVG(actual)::numeric, 2) AS observed
+              FROM heat_index
+              WHERE date >= $1 AND date <= $2
+              GROUP BY date
+              ORDER BY date`,
+            [startOfMonth, endOfMonth]
+          );
+        })()
       ]);
 
     const stations = summaryResult.rows;
@@ -78,8 +84,6 @@ router.get("/home-summary", async (req, res) => {
       danger_count: 0,
       fastest_increasing_station: "",
       fastest_increasing_trend: 0,
-      avg_model_forecasted: 0,
-      avg_pagasa_forecasted: 0
     };
 
     if (stations.length > 0) {
@@ -100,8 +104,6 @@ router.get("/home-summary", async (req, res) => {
         danger_count,
         fastest_increasing_station: fastestStation.station_name,
         fastest_increasing_trend: Number(Number(fastestStation.trend).toFixed(2)),
-        avg_model_forecasted: pagasaModelAvgResult.rows[0]?.avg_model_forecasted ? Number(Number(pagasaModelAvgResult.rows[0].avg_model_forecasted).toFixed(2)) : 0,
-        avg_pagasa_forecasted: pagasaModelAvgResult.rows[0]?.avg_pagasa_forecasted ? Number(Number(pagasaModelAvgResult.rows[0].avg_pagasa_forecasted).toFixed(2)) : 0
       };
     }
 
@@ -130,7 +132,8 @@ router.get("/home-summary", async (req, res) => {
           (sortOrder[a.name] || 999) - (sortOrder[b.name] || 999)
       );
 
-    res.json({ summary, synoptic });
+    const trend = trendResult.rows;
+    res.json({ summary, synoptic, trend });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to load home summary" });
