@@ -4,7 +4,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import Toggle from "../components/toggle";
 import ClassificationSelector from "../components/classification-selector";
-import { formatDate } from "../utils/dateFormatter";
+import { formatDate, getTrendSeries } from "../utils/dateFormatter";
 import { API_BASE_URL } from "../utils/api";
 
 // Types
@@ -320,12 +320,22 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
         <div className="flex-1 w-full">
           {summaryData ? (
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={[{
-                day: selectedDate?.slice(-2) || '',
-                observed: summaryData.avg ?? 0,
-                avg_model_forecasted: summaryData.avg_model_forecasted ?? 0,
-                avg_pagasa_forecasted: summaryData.avg_pagasa_forecasted ?? 0,
-              }]}> 
+              <LineChart
+                data={getTrendSeries(
+                  selectedDate,
+                  heatIndexPeriod,
+                  Array(1).fill({
+                    date: selectedDate,
+                    observed: summaryData.avg ?? 0,
+                    avg_model_forecasted: summaryData.avg_model_forecasted ?? 0,
+                    avg_pagasa_forecasted: summaryData.avg_pagasa_forecasted ?? 0,
+                  }),
+                  ["observed", "avg_model_forecasted", "avg_pagasa_forecasted"]
+                ).map(d => ({
+                  day: d.date.slice(-2),
+                  ...d
+                }))}
+              >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
                 <YAxis />

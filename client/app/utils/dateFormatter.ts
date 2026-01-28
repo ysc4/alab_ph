@@ -1,3 +1,53 @@
+/**
+ * Generates a time series for trend graphs (week/month) with 0 after selected date.
+ * @param selectedDate - The reference date (string or Date)
+ * @param period - "Week" or "Month"
+ * @param trendData - Array of objects with date and values (optional)
+ * @param keys - Array of keys to fill (e.g. ["temp", "pagasa_forecasted", "model_forecasted"])
+ * @returns Array of objects for charting
+ */
+export function getTrendSeries(
+  selectedDate: string | Date,
+  period: "Week" | "Month",
+  trendData?: Array<{ date: string; [key: string]: any }> | null,
+  keys: string[] = []
+): Array<{ date: string; [key: string]: any }> {
+  const selected = new Date(selectedDate);
+  let series: Array<{ date: string; [key: string]: any }> = [];
+  if (period === "Month") {
+    const startOfMonth = new Date(selected.getFullYear(), selected.getMonth(), 1);
+    const endOfMonth = new Date(selected.getFullYear(), selected.getMonth() + 1, 0);
+    const daysInMonth = endOfMonth.getDate();
+    for (let i = 1; i <= daysInMonth; i++) {
+      const d = new Date(startOfMonth);
+      d.setDate(i);
+      const isAfter = d > selected;
+      const found = trendData?.find(td => new Date(td.date).getDate() === d.getDate());
+      const entry: any = { date: d.toISOString().slice(0, 10) };
+      for (const key of keys) {
+        entry[key] = isAfter ? 0 : found?.[key] ?? 0;
+      }
+      series.push(entry);
+    }
+  } else {
+    // Week view
+    const dayOfWeek = selected.getDay() === 0 ? 7 : selected.getDay();
+    const startOfWeek = new Date(selected);
+    startOfWeek.setDate(selected.getDate() - dayOfWeek + 1);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      const isAfter = d > selected;
+      const found = trendData?.find(td => new Date(td.date).getDate() === d.getDate());
+      const entry: any = { date: d.toISOString().slice(0, 10) };
+      for (const key of keys) {
+        entry[key] = isAfter ? 0 : found?.[key] ?? 0;
+      }
+      series.push(entry);
+    }
+  }
+  return series;
+}
 export const formatDate = (dateString: string | Date | null | undefined): string => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);

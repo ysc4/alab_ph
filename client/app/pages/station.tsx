@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { useState, useEffect } from "react";
 import Toggle from "../components/toggle";
-import { formatDate, getISOWeek } from "../utils/dateFormatter";
+import { formatDate, getISOWeek, getTrendSeries } from "../utils/dateFormatter";
 import {
   Heart,
   Motorbike,
@@ -327,7 +327,14 @@ const Station: React.FC<{
           <div className="flex-1 w-full">
             {heatIndexTrendData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={heatIndexTrendData}>
+                <LineChart
+                  data={getTrendSeries(
+                    selectedDate,
+                    heatIndexTrendPeriod,
+                    heatIndexTrendData,
+                    ["temp", "pagasa_forecasted", "model_forecasted"]
+                  )}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="date"
