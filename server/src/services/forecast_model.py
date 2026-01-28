@@ -60,6 +60,8 @@ def prepare_features(station_id, df):
     def v(col):
         return float(row[col].iloc[0]) if col in row.columns else 0.0
 
+    # ...existing code...
+
     T = v("TMAX")
     RH = v("RH")
     W = v("WIND_SPEED")
@@ -160,18 +162,30 @@ def main():
     station_ids = df["Station"].unique()
 
     for sid in station_ids:
-        x = prepare_features(sid, df)
-        dmat = xgb.DMatrix(x)
-        preds = model.predict(dmat)
-        pred = float(np.asarray(preds).ravel()[0])
+        # Predict for tomorrow
+        tomorrow_date = pd.to_datetime(sys.argv[1]) + pd.Timedelta(days=1)
+        tomorrow_df = df.copy()
+        tomorrow_df["Date"] = pd.to_datetime(tomorrow_df["Date"])
+        tomorrow_features = prepare_features(sid, tomorrow_df[tomorrow_df["Date"] == tomorrow_date])
+        dmat_tomorrow = xgb.DMatrix(tomorrow_features)
+        preds_tomorrow = model.predict(dmat_tomorrow)
+        pred_tomorrow = float(np.asarray(preds_tomorrow).ravel()[0])
+        pred_tomorrow = round(max(27.0, min(55.0, pred_tomorrow)), 2)
 
-        # Clamp realistic Heat Index bounds
-        pred = round(max(27.0, min(55.0, pred)), 2)
-        # CSV station IDs are 0-based; convert to 1-based for DB consistency
+        # Predict for day after tomorrow
+        day_after_date = pd.to_datetime(sys.argv[1]) + pd.Timedelta(days=2)
+        day_after_df = df.copy()
+        day_after_df["Date"] = pd.to_datetime(day_after_df["Date"])
+        day_after_features = prepare_features(sid, day_after_df[day_after_df["Date"] == day_after_date])
+        dmat_day_after = xgb.DMatrix(day_after_features)
+        preds_day_after = model.predict(dmat_day_after)
+        pred_day_after = float(np.asarray(preds_day_after).ravel()[0])
+        pred_day_after = round(max(27.0, min(55.0, pred_day_after)), 2)
+
         forecasts.append({
             "station_id": int(sid) + 1,
-            "tomorrow": pred,
-            "day_after_tomorrow": pred
+            "tomorrow": pred_tomorrow,
+            "day_after_tomorrow": pred_day_after
         })
 
     print(json.dumps(forecasts))
