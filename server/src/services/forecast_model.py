@@ -167,7 +167,6 @@ def main():
 
         # Clamp realistic Heat Index bounds
         pred = round(max(27.0, min(55.0, pred)), 2)
-
         # CSV station IDs are 0-based; convert to 1-based for DB consistency
         forecasts.append({
             "station_id": int(sid) + 1,
