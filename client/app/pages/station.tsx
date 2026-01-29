@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { useState, useEffect } from "react";
 import Toggle from "../components/toggle";
-import { formatDate, getISOWeek, getTrendSeries } from "../utils/dateFormatter";
+import { formatDate, getTrendSeries } from "../utils/dateFormatter";
 import {
   Heart,
   Motorbike,
@@ -22,7 +22,7 @@ import {
   Megaphone,
 } from "lucide-react";
 import React from "react";
-import { API_BASE_URL, apiGetWithParams } from "../utils/api";
+import { API_BASE_URL } from "../utils/api";
 
 interface TrendData {
   date: string;
@@ -221,8 +221,6 @@ const Station: React.FC<{
   };
   const safeClassificationInfo: ClassificationInfo | null = classificationInfo || null;
 
-  const heatIndexTrendData = trendData;
-
   const formatTempChange = (tempChange: number) => {
     if (!tempChange || tempChange === 0) return "N/A";
     const sign = tempChange >= 0 ? "+" : "-";
@@ -325,13 +323,13 @@ const Station: React.FC<{
             <Toggle options={["Week", "Month"]} onSelect={(selected) => setHeatIndexTrendPeriod(selected as "Week" | "Month")} />
           </div>
           <div className="flex-1 w-full">
-            {heatIndexTrendData.length > 0 ? (
+            {trendData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={getTrendSeries(
                     selectedDate,
                     heatIndexTrendPeriod,
-                    heatIndexTrendData,
+                    trendData,
                     ["temp", "pagasa_forecasted", "model_forecasted"]
                   )}
                 >

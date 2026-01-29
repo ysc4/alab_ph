@@ -45,6 +45,13 @@ interface SummaryData {
   avg_pagasa_forecasted: number;
 }
 
+interface HistoricalHIData {
+  date: string;
+  observed: number;
+  avg_model_forecasted: number;
+  avg_pagasa_forecasted: number;
+}
+
 interface HomeProps {
   selectedDate: string;
   onDateSelect?: (date: string) => void;
@@ -61,6 +68,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
   const [forecastErrorData, setForecastErrorData] = useState<ForecastError[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [synopticData, setSynopticData] = useState<SynopticData[]>([]);
+  const [historicalHIData, setHistoricalHIData] = useState<HistoricalHIData[]>([]);
 
   // Refresh function to refetch all data
   const refreshData = () => {
@@ -199,7 +207,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
 
   // Fetch home summary data (consolidated: summary + synoptic)
   useEffect(() => {
-    fetch(`${API_BASE_URL}/home-summary?date=${selectedDate}`)
+    fetch(`${API_BASE_URL}/home-summary?date=${selectedDate}&range=${heatIndexPeriod}`)
       .then(async res => {
         if (!res.ok) {
           const text = await res.text();
@@ -211,10 +219,22 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
       .then(data => {
         setSummaryData(data.summary);
         setSynopticData(data.synoptic);
+        
+        // Use the trend data if available
+        if (data.trend && Array.isArray(data.trend)) {
+          setHistoricalHIData(data.trend);
+        } else {
+          // Fallback: create single point from summary
+          setHistoricalHIData([{
+            date: selectedDate,
+            observed: data.summary.avg ?? 0,
+            avg_model_forecasted: data.summary.avg_model_forecasted ?? 0,
+            avg_pagasa_forecasted: data.summary.avg_pagasa_forecasted ?? 0,
+          }]);
+        }
       })
       .catch(err => console.error("Error fetching home summary:", err));
-  }, [selectedDate, refreshTrigger]);
-
+  }, [selectedDate, refreshTrigger, heatIndexPeriod]);
 
   // Fetch forecast error data
   useEffect(() => {
@@ -318,18 +338,13 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
           <Toggle options={["Week", "Month"]} onSelect={(selected) => setHeatIndexPeriod(selected as "Week" | "Month")} />
         </div>
         <div className="flex-1 w-full">
-          {summaryData ? (
+          {historicalHIData.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
               <LineChart
                 data={getTrendSeries(
                   selectedDate,
                   heatIndexPeriod,
-                  Array(1).fill({
-                    date: selectedDate,
-                    observed: summaryData.avg ?? 0,
-                    avg_model_forecasted: summaryData.avg_model_forecasted ?? 0,
-                    avg_pagasa_forecasted: summaryData.avg_pagasa_forecasted ?? 0,
-                  }),
+                  historicalHIData,
                   ["observed", "avg_model_forecasted", "avg_pagasa_forecasted"]
                 ).map(d => ({
                   day: d.date.slice(-2),

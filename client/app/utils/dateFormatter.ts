@@ -12,44 +12,59 @@ export function getTrendSeries(
   trendData?: Array<{ date: string; [key: string]: any }> | null,
   keys: string[] = []
 ): Array<{ date: string; [key: string]: any }> {
+  // Normalize selected date to midnight for accurate comparison
   const selected = new Date(selectedDate);
+  selected.setHours(0, 0, 0, 0);
+  
   let series: Array<{ date: string; [key: string]: any }> = [];
+  
   if (period === "Month") {
     const startOfMonth = new Date(selected.getFullYear(), selected.getMonth(), 1);
     const endOfMonth = new Date(selected.getFullYear(), selected.getMonth() + 1, 0);
     const daysInMonth = endOfMonth.getDate();
+    
     for (let i = 1; i <= daysInMonth; i++) {
       const d = new Date(startOfMonth);
       d.setDate(i);
-      const isAfter = d > selected;
+      d.setHours(0, 0, 0, 0); // Normalize to midnight
+      
       const dateStr = d.toISOString().slice(0, 10);
+      const isAfter = d.getTime() > selected.getTime(); // Compare timestamps
       const found = trendData?.find(td => td.date?.slice(0, 10) === dateStr);
+      
       const entry: any = { date: dateStr };
       for (const key of keys) {
-        entry[key] = isAfter ? 0 : found?.[key] ?? 0;
+        entry[key] = isAfter ? 0 : (found?.[key] ?? 0);
       }
       series.push(entry);
     }
   } else {
-    // Week view
+    // Week view (Monday to Sunday)
     const dayOfWeek = selected.getDay() === 0 ? 7 : selected.getDay();
     const startOfWeek = new Date(selected);
     startOfWeek.setDate(selected.getDate() - dayOfWeek + 1);
+    startOfWeek.setHours(0, 0, 0, 0);
+    
     for (let i = 0; i < 7; i++) {
       const d = new Date(startOfWeek);
       d.setDate(startOfWeek.getDate() + i);
-      const isAfter = d > selected;
+      d.setHours(0, 0, 0, 0); // Normalize to midnight
+      
       const dateStr = d.toISOString().slice(0, 10);
+      const isAfter = d.getTime() > selected.getTime(); // Compare timestamps
       const found = trendData?.find(td => td.date?.slice(0, 10) === dateStr);
+      
       const entry: any = { date: dateStr };
       for (const key of keys) {
-        entry[key] = isAfter ? 0 : found?.[key] ?? 0;
+        entry[key] = isAfter ? 0 : (found?.[key] ?? 0);
       }
       series.push(entry);
     }
   }
+  
   return series;
 }
+
 export const formatDate = (dateString: string | Date | null | undefined): string => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
@@ -80,8 +95,6 @@ export const formatDateWithWeek = (dateString: string | Date | null | undefined)
   const day = String(date.getDate()).padStart(2, '0');
   return `W${week} ${month}/${day}/${year}`;
 };
-
-// utils/dateFormatter.ts
 
 export function getISOWeek(dateStr: string): { week: number; year: number } {
   const date = new Date(dateStr);
