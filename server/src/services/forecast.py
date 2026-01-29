@@ -88,7 +88,7 @@ def main():
             else:
                 # Model outputs 1 value per sample
                 forecasts.append({
-                    "station_id": int(station_id),
+                    "station_id": int(station_id) + 1,
                     "t1_forecast": round(float(pred_row[0]), 2),
                     "t2_forecast": round(float(pred_row[0]), 2)
                 })
