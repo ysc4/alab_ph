@@ -41,7 +41,7 @@ router.post("/generate-forecasts", async (req, res) => {
     console.log(`Found ${stations.length} stations`);
 
     // Path to Python script
-    const pythonScriptPath = path.join(__dirname, "../services/forecast_model.py");
+    const pythonScriptPath = path.join(__dirname, "../services/forecast.py");
     console.log("Python script path:", pythonScriptPath);
 
     // Execute Python script
