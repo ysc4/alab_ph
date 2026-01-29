@@ -1,4 +1,3 @@
-
 import sys
 import json
 import os
@@ -7,7 +6,6 @@ import numpy as np
 import xgboost as xgb
 
 # --- Configuration ---
-# Model and data paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "xgb_hi_forecast_model.json")
 DATA_PATH = os.path.join(BASE_DIR, "services", "df_test_final.csv")
@@ -33,11 +31,6 @@ TRAINING_FEATURES = [
 ]
 
 def main():
-    # Debug: print important paths
-    print(f"[DEBUG] BASE_DIR: {BASE_DIR}", file=sys.stderr)       
-    print(f"[DEBUG] MODEL_PATH: {MODEL_PATH}", file=sys.stderr)
-    print(f"[DEBUG] DATA_PATH: {DATA_PATH}", file=sys.stderr)
-    
     # 1. Capture date from command line (Dashboard input)
     if len(sys.argv) < 2:
         print(json.dumps({"error": "No date provided via command line"}))
@@ -47,19 +40,16 @@ def main():
 
     try:
         # 2. Load Model
-        # Using xgb.Booster or XGBRegressor depending on how it was saved
-        # Since you used XGBRegressor().load_model in Jupyter, we stick to that:
         model = xgb.XGBRegressor()
         model.load_model(MODEL_PATH)
         
+        # Get the underlying Booster object
+        booster = model.get_booster()
+        
         # 3. Load Data
         df = pd.read_csv(DATA_PATH)
-        print(f"[DEBUG] CSV loaded: {DATA_PATH}, shape: {df.shape}", file=sys.stderr)
-        print(f"[DEBUG] df.columns: {df.columns.tolist()}", file=sys.stderr)
-        print(f"[DEBUG] df.head():\n{df.head()}\n", file=sys.stderr)
         
         # 4. Filter data for the specific date
-        # Ensure date column is string for easy comparison or convert to datetime
         mask = df['Date'] == selected_date
         df_selected = df[mask].copy()
         
@@ -67,24 +57,42 @@ def main():
             print(json.dumps({"error": f"No data found for date {selected_date}"}))
             sys.exit(1)
 
-        # 5. Extract features and Predict
-        # Ensure X_input is a DataFrame with correct columns
+        # 5. Extract features and create DMatrix
         X_input = df_selected[TRAINING_FEATURES].copy()
-        predictions = model.predict(X_input) # Returns [n_samples, 2]
+        
+        # Create DMatrix with explicit feature names
+        dmatrix = xgb.DMatrix(
+            X_input.values,
+            feature_names=TRAINING_FEATURES
+        )
+        
+        # Predict using Booster
+        predictions = booster.predict(dmatrix)
         
         # 6. Format Results for Dashboard
         forecasts = []
+        
+        # Handle predictions shape
+        if len(predictions.shape) == 1:
+            predictions = predictions.reshape(-1, 1)
+        
         # Zip Station IDs with their [t+1, t+2] prediction pairs
-        for station_id, pred_pair in zip(df_selected['Station'], predictions):
-            forecasts.append({
-                "station_id": int(station_id),
-                "t1_forecast": round(float(pred_pair[0]), 2),
-                "t2_forecast": round(float(pred_pair[1]), 2)
-            })
-            
-        # Debug print: show all updated forecast data for home after clicking
-        print("[DEBUG] All updated forecast data for home:")
-        print(json.dumps(forecasts, indent=2))
+        for station_id, pred_row in zip(df_selected['Station'], predictions):
+            if predictions.shape[1] >= 2:
+                # Model outputs 2 values per sample
+                forecasts.append({
+                    "station_id": int(station_id),
+                    "t1_forecast": round(float(pred_row[0]), 2),
+                    "t2_forecast": round(float(pred_row[1]), 2)
+                })
+            else:
+                # Model outputs 1 value per sample
+                forecasts.append({
+                    "station_id": int(station_id),
+                    "t1_forecast": round(float(pred_row[0]), 2),
+                    "t2_forecast": round(float(pred_row[0]), 2)
+                })
+        
         # Standard output for the dashboard to capture
         print(json.dumps(forecasts))
 
