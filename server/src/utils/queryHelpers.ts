@@ -11,14 +11,21 @@ export const getDateRangeCondition = (date: string | undefined, range: string | 
   }
 
   const selectedDate = new Date(date);
-  
+
   if (range === 'Month') {
     const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
     const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
     return `date >= '${startOfMonth.toISOString().split('T')[0]}' AND date <= '${endOfMonth.toISOString().split('T')[0]}'`;
   }
-  
-  const { startDate, endDate } = getISOWeekRange(date);
+
+  // Rolling 7 days: from 6 days before selectedDate to selectedDate (inclusive)
+  const end = new Date(selectedDate);
+  end.setHours(23, 59, 59, 999);
+  const start = new Date(selectedDate);
+  start.setDate(start.getDate() - 6);
+  start.setHours(0, 0, 0, 0);
+  const startDate = start.toISOString().split('T')[0];
+  const endDate = end.toISOString().split('T')[0];
   return `date >= '${startDate}' AND date <= '${endDate}'`;
 };
 

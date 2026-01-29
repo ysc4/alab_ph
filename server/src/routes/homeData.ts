@@ -13,14 +13,6 @@ router.get("/home-summary", async (req, res) => {
     const pool = getDB();
     const { date, range } = req.query;
 
-    const dateCondition = date
-      ? "h.date = $1"
-      : `h.date = (
-          SELECT MAX(date)
-          FROM heat_index hi
-          WHERE hi.station = h.station
-        )`;
-
     const [summaryResult, synopticResult, trendResult] =
       await Promise.all([
         pool.query(
@@ -59,24 +51,30 @@ router.get("/home-summary", async (req, res) => {
 
         // Trend query: daily average for the full month of the selected date, always include the selected date
         (async () => {
-          if (!date) return pool.query('SELECT date, 0 as avg_model_forecasted, 0 as avg_pagasa_forecasted, 0 as observed WHERE false');
-          const d = new Date(date as string);
-          const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-          const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
-          let trendRows = (await pool.query(
-            `SELECT date, ROUND(AVG(model_forecasted)::numeric, 2) AS avg_model_forecasted, ROUND(AVG(pagasa_forecasted)::numeric, 2) AS avg_pagasa_forecasted, ROUND(AVG(actual)::numeric, 2) AS observed
-              FROM heat_index
-              WHERE date >= $1 AND date <= $2
-              GROUP BY date
-              ORDER BY date`,
-            [startOfMonth, endOfMonth]
-          )).rows;
+          if (!date) return pool.query('SELECT date, 0 as model_forecasted, 0 as pagasa_forecasted, 0 as temp WHERE false');
+          const range = (req.query.range as string) || 'Month';
+          const dateCondition = getDateRangeCondition(date as string, range);
+          const trendQuery = `
+            SELECT
+              TO_CHAR(date, 'YYYY-MM-DD') as date,
+              ${roundNumeric('AVG(actual)')} AS temp,
+              ${roundNumeric('AVG(pagasa_forecasted)')} AS pagasa_forecasted,
+              ${roundNumeric('AVG(model_forecasted)')} AS model_forecasted
+            FROM heat_index
+            WHERE ${dateCondition}
+            GROUP BY date
+            ORDER BY date
+          `;
+          let trendRows = (await pool.query(trendQuery)).rows;
           // Ensure selected date is present if any station has data for it
-          const selectedStr = d.toISOString().slice(0, 10);
+          const selectedStr = new Date(date as string).toISOString().slice(0, 10);
           if (!trendRows.some(row => row.date === selectedStr)) {
             // Try to compute the average for the selected date only
             const singleDay = (await pool.query(
-              `SELECT date, ROUND(AVG(model_forecasted)::numeric, 2) AS avg_model_forecasted, ROUND(AVG(pagasa_forecasted)::numeric, 2) AS avg_pagasa_forecasted, ROUND(AVG(actual)::numeric, 2) AS observed
+              `SELECT TO_CHAR(date, 'YYYY-MM-DD') as date,
+                ${roundNumeric('AVG(actual)')} AS temp,
+                ${roundNumeric('AVG(pagasa_forecasted)')} AS pagasa_forecasted,
+                ${roundNumeric('AVG(model_forecasted)')} AS model_forecasted
                 FROM heat_index
                 WHERE date = $1
                 GROUP BY date`,
@@ -87,12 +85,11 @@ router.get("/home-summary", async (req, res) => {
             } else {
               trendRows.push({
                 date: selectedStr,
-                avg_model_forecasted: 0,
-                avg_pagasa_forecasted: 0,
-                observed: 0
+                model_forecasted: 0,
+                pagasa_forecasted: 0,
+                temp: 0
               });
             }
-            // Sort again using date-based comparison for robustness
             trendRows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
           }
           return { rows: trendRows };
