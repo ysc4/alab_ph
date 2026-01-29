@@ -363,16 +363,8 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
         <div className="flex-1 w-full">
           {historicalHIData.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart
-                data={getTrendSeries(
-                  selectedDate,
-                  heatIndexPeriod,
-                  historicalHIData,
-                  ["observed", "avg_model_forecasted", "avg_pagasa_forecasted"]
-                ).map(d => ({
-                  day: new Date(d.date).getDate(),
-                  ...d
-                }))}
+                <LineChart
+                  data={getTrendSeries(selectedDate, heatIndexPeriod, historicalHIData, ["observed", "avg_model_forecasted", "avg_pagasa_forecasted"])}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
