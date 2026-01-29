@@ -13,12 +13,8 @@ const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
     onSelect?.(e.target.value);
   };
 
-  const handleClick = () => {
-    inputRef.current?.showPicker();
-  };
-
   return (
-    <div className="relative w-50 cursor-pointer" onClick={handleClick}>
+    <div className="relative w-50">
       <input
         ref={inputRef}
         type="date"
@@ -34,8 +30,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
           text-base font-medium text-text-primary
           appearance-none
           focus:outline-none focus:border-text-primary
-          [&::-webkit-calendar-picker-indicator]:opacity-0
-          caret-transparent
+          [&::-webkit-calendar-picker-indicator]:cursor-pointer
         "
       />
       <Calendar
