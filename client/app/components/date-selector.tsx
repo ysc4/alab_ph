@@ -7,15 +7,18 @@ interface DateSelectorProps {
 }
 
 const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
-
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onSelect?.(e.target.value);
   };
 
+  const handleClick = () => {
+    inputRef.current?.showPicker();
+  };
+
   return (
-    <div className="relative w-50 cursor-pointer">
+    <div className="relative w-50 cursor-pointer" onClick={handleClick}>
       <input
         ref={inputRef}
         type="date"
@@ -23,6 +26,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
         onChange={handleDateChange}
         min="2023-03-01"
         max="2023-05-31"
+        readOnly
         className="
           w-full cursor-pointer
           rounded-2xl border-2 border-[#B8BBC2]
@@ -31,6 +35,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
           appearance-none
           focus:outline-none focus:border-text-primary
           [&::-webkit-calendar-picker-indicator]:opacity-0
+          caret-transparent
         "
       />
       <Calendar
