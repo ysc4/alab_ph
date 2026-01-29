@@ -55,6 +55,8 @@ def main():
         # 3. Load Data
         df = pd.read_csv(DATA_PATH)
         print(f"[DEBUG] CSV loaded: {DATA_PATH}, shape: {df.shape}", file=sys.stderr)
+        print(f"[DEBUG] df.columns: {df.columns.tolist()}", file=sys.stderr)
+        print(f"[DEBUG] df.head():\n{df.head()}\n", file=sys.stderr)
         
         # 4. Filter data for the specific date
         # Ensure date column is string for easy comparison or convert to datetime
