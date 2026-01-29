@@ -62,7 +62,7 @@ router.get("/home-summary", async (req, res) => {
           const d = new Date(date as string);
           const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
           const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
-          const trendRows = (await pool.query(
+          let trendRows = (await pool.query(
             `SELECT date, ROUND(AVG(model_forecasted)::numeric, 2) AS avg_model_forecasted, ROUND(AVG(pagasa_forecasted)::numeric, 2) AS avg_pagasa_forecasted, ROUND(AVG(actual)::numeric, 2) AS observed
               FROM heat_index
               WHERE date >= $1 AND date <= $2
@@ -70,15 +70,27 @@ router.get("/home-summary", async (req, res) => {
               ORDER BY date`,
             [startOfMonth, endOfMonth]
           )).rows;
-          // Ensure selected date is present
+          // Ensure selected date is present if any station has data for it
           const selectedStr = d.toISOString().slice(0, 10);
           if (!trendRows.some(row => row.date === selectedStr)) {
-            trendRows.push({
-              date: selectedStr,
-              avg_model_forecasted: 0,
-              avg_pagasa_forecasted: 0,
-              observed: 0
-            });
+            // Try to compute the average for the selected date only
+            const singleDay = (await pool.query(
+              `SELECT date, ROUND(AVG(model_forecasted)::numeric, 2) AS avg_model_forecasted, ROUND(AVG(pagasa_forecasted)::numeric, 2) AS avg_pagasa_forecasted, ROUND(AVG(actual)::numeric, 2) AS observed
+                FROM heat_index
+                WHERE date = $1
+                GROUP BY date`,
+              [selectedStr]
+            )).rows;
+            if (singleDay.length > 0) {
+              trendRows.push(singleDay[0]);
+            } else {
+              trendRows.push({
+                date: selectedStr,
+                avg_model_forecasted: 0,
+                avg_pagasa_forecasted: 0,
+                observed: 0
+              });
+            }
             // Sort again using date-based comparison for robustness
             trendRows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
           }
