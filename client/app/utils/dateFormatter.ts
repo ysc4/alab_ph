@@ -24,15 +24,13 @@ export function getTrendSeries(
   // Filter for week or month
   let filtered = trendData;
   if (period === "Week") {
-    // Get ISO week range for selected date
-    const { startDate, endDate } = getISOWeekRange(selected.toISOString().slice(0, 10));
-    // Build a map for quick lookup
+    // Rolling 7-day window ending at selected date
     const dataMap = new Map(
       trendData.map(d => [new Date(d.date).toISOString().slice(0, 10), d])
     );
-    // Generate all 7 days in the week
     const weekSeries = [];
-    let current = new Date(startDate);
+    let current = new Date(selected);
+    current.setDate(current.getDate() - 6); // 6 days before selected date
     for (let i = 0; i < 7; i++) {
       const dateStr = current.toISOString().slice(0, 10);
       const d = dataMap.get(dateStr);
