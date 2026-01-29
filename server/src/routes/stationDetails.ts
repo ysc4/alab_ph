@@ -248,8 +248,8 @@ router.get('/station/:stationId/forecast-error', async (req, res) => {
     const result = await pool.query(
       `SELECT
         EXTRACT(DAY FROM date)::integer AS day,
-        COALESCE("1day_abs_error", 0) AS t_plus_one,
-        COALESCE("2day_abs_error", 0) AS t_plus_two
+        COALESCE("one_day_abs_error", 0) AS t_plus_one,
+        COALESCE("two_day_abs_error", 0) AS t_plus_two
       FROM model_heat_index
       WHERE station = $1 AND ${dateCondition}
       ORDER BY date ASC`,

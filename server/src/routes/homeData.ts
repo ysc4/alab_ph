@@ -56,20 +56,33 @@ router.get("/home-summary", async (req, res) => {
           date ? [date] : []
         ),
 
-        // Trend query: daily average for the full month of the selected date
-        (() => {
+        // Trend query: daily average for the full month of the selected date, always include the selected date
+        (async () => {
           if (!date) return pool.query('SELECT date, 0 as avg_model_forecasted, 0 as avg_pagasa_forecasted, 0 as observed WHERE false');
           const d = new Date(date as string);
           const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
           const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
-          return pool.query(
+          const trendRows = (await pool.query(
             `SELECT date, ROUND(AVG(model_forecasted)::numeric, 2) AS avg_model_forecasted, ROUND(AVG(pagasa_forecasted)::numeric, 2) AS avg_pagasa_forecasted, ROUND(AVG(actual)::numeric, 2) AS observed
               FROM heat_index
               WHERE date >= $1 AND date <= $2
               GROUP BY date
               ORDER BY date`,
             [startOfMonth, endOfMonth]
-          );
+          )).rows;
+          // Ensure selected date is present
+          const selectedStr = d.toISOString().slice(0, 10);
+          if (!trendRows.some(row => row.date === selectedStr)) {
+            trendRows.push({
+              date: selectedStr,
+              avg_model_forecasted: 0,
+              avg_pagasa_forecasted: 0,
+              observed: 0
+            });
+            // Sort again
+            trendRows.sort((a, b) => a.date.localeCompare(b.date));
+          }
+          return { rows: trendRows };
         })()
       ]);
 
@@ -153,8 +166,8 @@ router.get("/forecast-error", async (req, res) => {
     const result = await pool.query(`
       SELECT
         EXTRACT(DAY FROM date)::integer AS day,
-        ${roundNumeric('AVG("1day_abs_error")', 0, 2)} AS t_plus_one,
-        ${roundNumeric('AVG("2day_abs_error")', 0, 2)} AS t_plus_two
+        ${roundNumeric('AVG("one_day_abs_error")', 0, 2)} AS t_plus_one,
+        ${roundNumeric('AVG("two_day_abs_error")', 0, 2)} AS t_plus_two
       FROM model_heat_index
       WHERE ${dateCondition}
       GROUP BY EXTRACT(DAY FROM date)
