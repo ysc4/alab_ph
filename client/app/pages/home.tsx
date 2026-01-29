@@ -364,8 +364,15 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
           {historicalHIData.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
                 <LineChart
-                  data={getTrendSeries(selectedDate, heatIndexPeriod, historicalHIData, ["observed", "avg_model_forecasted", "avg_pagasa_forecasted"])}
-              >
+                  data={getTrendSeries(
+                  selectedDate,
+                  heatIndexPeriod,
+                  historicalHIData,
+                  ["observed", "avg_model_forecasted", "avg_pagasa_forecasted"]
+                ).map(d => ({
+                  day: new Date(d.date).getDate(),
+                  ...d
+                }))}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
                 <YAxis />
