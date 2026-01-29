@@ -81,8 +81,8 @@ router.get('/station/:stationId/summary', async (req, res) => {
       // Absolute errors from model_heat_index
       pool.query(
         `SELECT
-          ROUND(COALESCE("1day_abs_error", 0)::numeric, 1) as "1day_abs_error",
-          ROUND(COALESCE("2day_abs_error", 0)::numeric, 1) as "2day_abs_error"
+          ROUND(COALESCE("one_day_abs_error", 0)::numeric, 1) as "one_day_abs_error",
+          ROUND(COALESCE("two_day_abs_error", 0)::numeric, 1) as "two_day_abs_error"
         FROM model_heat_index
         WHERE station = $1
         ${date ? 'AND date = $2' : ''}
@@ -144,8 +144,8 @@ router.get('/station/:stationId/summary', async (req, res) => {
       rsquared_2day: 0,
     };
     const absErrors = absErrorResult.rows[0] || {
-      "1day_abs_error": 0,
-      "2day_abs_error": 0,
+      "one_day_abs_error": 0,
+      "two_day_abs_error": 0,
     };
 
     res.json({
@@ -171,8 +171,8 @@ router.get('/station/:stationId/summary', async (req, res) => {
         rmse_2day: metrics.rmse_2day,
         mae_2day: metrics.mae_2day,
         rsquared_2day: metrics.rsquared_2day,
-        absError1Day: absErrors['1day_abs_error'],
-        absError2Day: absErrors['2day_abs_error'],
+        absError1Day: absErrors['one_day_abs_error'],
+        absError2Day: absErrors['two_day_abs_error'],
       }
     });
 
