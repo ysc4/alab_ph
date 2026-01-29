@@ -70,6 +70,29 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
   const [synopticData, setSynopticData] = useState<SynopticData[]>([]);
   const [historicalHIData, setHistoricalHIData] = useState<HistoricalHIData[]>([]);
 
+   function getForecastErrorSeries(
+    selectedDate: string,
+    errorData: ForecastError[]
+  ): ForecastError[] {
+    const selected = new Date(selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    return errorData.map((d) => {
+      // Try to parse day as date string (YYYY-MM-DD) or as day number
+      let dDate: Date | null = null;
+      if (typeof d.day === 'string') {
+        dDate = new Date(d.day);
+      } else if (typeof d.day === 'number') {
+        // Assume same month/year as selectedDate
+        dDate = new Date(selected);
+        dDate.setDate(d.day);
+      }
+      if (dDate && dDate.getTime() > selected.getTime()) {
+        return { ...d, t_plus_one: 0, t_plus_two: 0 };
+      }
+      return d;
+    });
+  }
+
   // Refresh function to refetch all data
   const refreshData = () => {
     console.log('Refreshing all data...');
@@ -347,7 +370,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
                   historicalHIData,
                   ["observed", "avg_model_forecasted", "avg_pagasa_forecasted"]
                 ).map(d => ({
-                  day: d.date.slice(-2),
+                  day: new Date(d.date).getDate(),
                   ...d
                 }))}
               >
@@ -377,7 +400,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
         <div className="flex-1 w-full">
           {forecastErrorData.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={forecastErrorData}>
+              <LineChart data={getForecastErrorSeries(selectedDate, forecastErrorData)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
                 <YAxis />

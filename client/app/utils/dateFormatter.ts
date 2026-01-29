@@ -15,54 +15,67 @@ export function getTrendSeries(
   // Normalize selected date to midnight for accurate comparison
   const selected = new Date(selectedDate);
   selected.setHours(0, 0, 0, 0);
-  
-  let series: Array<{ date: string; [key: string]: any }> = [];
-  
-  if (period === "Month") {
-    const startOfMonth = new Date(selected.getFullYear(), selected.getMonth(), 1);
-    const endOfMonth = new Date(selected.getFullYear(), selected.getMonth() + 1, 0);
-    const daysInMonth = endOfMonth.getDate();
-    
-    for (let i = 1; i <= daysInMonth; i++) {
-      const d = new Date(startOfMonth);
-      d.setDate(i);
-      d.setHours(0, 0, 0, 0); // Normalize to midnight
-      
-      const dateStr = d.toISOString().slice(0, 10);
-      const isAfter = d.getTime() > selected.getTime(); // Compare timestamps
-      const found = trendData?.find(td => td.date?.slice(0, 10) === dateStr);
-      
-      const entry: any = { date: dateStr };
-      for (const key of keys) {
-        entry[key] = isAfter ? 0 : (found?.[key] ?? 0);
-      }
-      series.push(entry);
-    }
-  } else {
-    // Week view (Monday to Sunday)
-    const dayOfWeek = selected.getDay() === 0 ? 7 : selected.getDay();
-    const startOfWeek = new Date(selected);
-    startOfWeek.setDate(selected.getDate() - dayOfWeek + 1);
-    startOfWeek.setHours(0, 0, 0, 0);
-    
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
-      d.setHours(0, 0, 0, 0); // Normalize to midnight
-      
-      const dateStr = d.toISOString().slice(0, 10);
-      const isAfter = d.getTime() > selected.getTime(); // Compare timestamps
-      const found = trendData?.find(td => td.date?.slice(0, 10) === dateStr);
-      
-      const entry: any = { date: dateStr };
-      for (const key of keys) {
-        entry[key] = isAfter ? 0 : (found?.[key] ?? 0);
-      }
-      series.push(entry);
-    }
+
+  // If no trend data, return empty array
+  if (!trendData || trendData.length === 0) {
+    return [];
   }
-  
-  return series;
+
+  // Filter for week or month
+  let filtered = trendData;
+  if (period === "Week") {
+    // Get ISO week range for selected date
+    const { startDate, endDate } = getISOWeekRange(selected.toISOString().slice(0, 10));
+    // Build a map for quick lookup
+    const dataMap = new Map(
+      trendData.map(d => [new Date(d.date).toISOString().slice(0, 10), d])
+    );
+    // Generate all 7 days in the week
+    const weekSeries = [];
+    let current = new Date(startDate);
+    for (let i = 0; i < 7; i++) {
+      const dateStr = current.toISOString().slice(0, 10);
+      const d = dataMap.get(dateStr);
+      const dDate = new Date(dateStr);
+      dDate.setHours(0, 0, 0, 0);
+      let entry: any = { date: dateStr };
+      if (d) {
+        for (const key of keys) {
+          entry[key] = dDate.getTime() > selected.getTime() ? 0 : d[key] ?? 0;
+        }
+      } else {
+        for (const key of keys) {
+          entry[key] = dDate.getTime() > selected.getTime() ? 0 : 0;
+        }
+      }
+      weekSeries.push(entry);
+      current.setDate(current.getDate() + 1);
+    }
+    return weekSeries;
+  } else if (period === "Month") {
+    filtered = trendData.filter(d => {
+      const dDate = new Date(d.date);
+      return dDate.getFullYear() === selected.getFullYear() && dDate.getMonth() === selected.getMonth();
+    });
+    return filtered.map((d) => {
+      const dDate = new Date(d.date);
+      dDate.setHours(0, 0, 0, 0);
+      if (dDate.getTime() > selected.getTime()) {
+        const entry: any = { date: d.date };
+        for (const key of keys) {
+          entry[key] = 0;
+        }
+        return entry;
+      }
+      const entry: any = { date: d.date };
+      for (const key of keys) {
+        entry[key] = d[key] ?? 0;
+      }
+      return entry;
+    });
+  }
+  // Fallback: if period is not Week or Month, return empty array
+  return [];
 }
 
 export const formatDate = (dateString: string | Date | null | undefined): string => {

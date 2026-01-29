@@ -99,6 +99,31 @@ const Station: React.FC<{
   const [trendData, setTrendData] = useState<TrendData[]>([]);
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics | null>(null);
   const [forecastErrorData, setForecastErrorData] = useState<ForecastErrorData[]>([]);
+
+  // Utility: zero out forecast error after selected date
+  function getForecastErrorSeries(
+    selectedDate: string,
+    errorData: ForecastErrorData[]
+  ): ForecastErrorData[] {
+    const selected = new Date(selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    return errorData.map((d) => {
+      // Try to parse day as date string (YYYY-MM-DD) or as day number
+      let dDate: Date | null = null;
+      if (typeof d.day === 'string') {
+        dDate = new Date(d.day);
+      } else if (typeof d.day === 'number') {
+        // Assume same month/year as selectedDate
+        dDate = new Date(selected);
+        dDate.setDate(d.day);
+      }
+      if (dDate && dDate.getTime() > selected.getTime()) {
+        return { ...d, t_plus_one: 0, t_plus_two: 0 };
+      }
+      return d;
+    });
+  }
+  
   const [classificationInfo, setClassificationInfo] = useState<ClassificationInfo | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -331,18 +356,14 @@ const Station: React.FC<{
                     heatIndexTrendPeriod,
                     trendData,
                     ["temp", "pagasa_forecasted", "model_forecasted"]
-                  )}
+                  ).map(d => ({
+                    day: new Date(d.date).getDate(),
+                    ...d
+                  }))}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
-                    dataKey="date"
-                    tickFormatter={(d) =>
-                      new Date(d).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })
-                    }
-                  />
+                    dataKey="day"/>
                   <YAxis />
                   <Tooltip />
                   <Legend />
@@ -384,7 +405,7 @@ const Station: React.FC<{
           </div>
           {forecastErrorData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={forecastErrorData}>
+              <LineChart data={getForecastErrorSeries(selectedDate, forecastErrorData)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
                 <YAxis />
