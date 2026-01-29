@@ -79,8 +79,8 @@ router.get("/home-summary", async (req, res) => {
               avg_pagasa_forecasted: 0,
               observed: 0
             });
-            // Sort again using date-based comparison for robustness
-            trendRows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            // Sort again
+            trendRows.sort((a, b) => a.date.localeCompare(b.date));
           }
           return { rows: trendRows };
         })()
