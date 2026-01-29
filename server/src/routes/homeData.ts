@@ -48,9 +48,9 @@ router.get("/home-summary", async (req, res) => {
             COUNT(DISTINCT mh.station) AS value
           FROM model_heat_index mh
           JOIN stations s ON s.id = mh.station
-          JOIN classification c
+          LEFT JOIN classification c
             ON mh.tomorrow >= c.min_temp
-           AND mh.tomorrow < CAST(c.max_temp AS NUMERIC) + 1
+           AND mh.tomorrow < CAST(c.max_temp AS NUMERIC)
           WHERE mh.date = $1
           GROUP BY c.level
         `,
