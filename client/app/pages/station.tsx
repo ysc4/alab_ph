@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { useState, useEffect } from "react";
 import Toggle from "../components/toggle";
-import { formatDate, getTrendSeries, getForecastErrorSeries } from "../utils/dateFormatter";
+import { formatDate, getTrendSeries } from "../utils/dateFormatter";
 import {
   Heart,
   Motorbike,
@@ -101,28 +101,28 @@ const Station: React.FC<{
   const [forecastErrorData, setForecastErrorData] = useState<ForecastErrorData[]>([]);
 
   // Utility: zero out forecast error after selected date
-  // function getForecastErrorSeries(
-  //   selectedDate: string,
-  //   errorData: ForecastErrorData[]
-  // ): ForecastErrorData[] {
-  //   const selected = new Date(selectedDate);
-  //   selected.setHours(0, 0, 0, 0);
-  //   return errorData.map((d) => {
-  //     // Try to parse day as date string (YYYY-MM-DD) or as day number
-  //     let dDate: Date | null = null;
-  //     if (typeof d.day === 'string') {
-  //       dDate = new Date(d.day);
-  //     } else if (typeof d.day === 'number') {
-  //       // Assume same month/year as selectedDate
-  //       dDate = new Date(selected);
-  //       dDate.setDate(d.day);
-  //     }
-  //     if (dDate && dDate.getTime() > selected.getTime()) {
-  //       return { ...d, t_plus_one: 0, t_plus_two: 0 };
-  //     }
-  //     return d;
-  //   });
-  // }
+  function getForecastErrorSeries(
+    selectedDate: string,
+    errorData: ForecastErrorData[]
+  ): ForecastErrorData[] {
+    const selected = new Date(selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    return errorData.map((d) => {
+      // Try to parse day as date string (YYYY-MM-DD) or as day number
+      let dDate: Date | null = null;
+      if (typeof d.day === 'string') {
+        dDate = new Date(d.day);
+      } else if (typeof d.day === 'number') {
+        // Assume same month/year as selectedDate
+        dDate = new Date(selected);
+        dDate.setDate(d.day);
+      }
+      if (dDate && dDate.getTime() > selected.getTime()) {
+        return { ...d, t_plus_one: 0, t_plus_two: 0 };
+      }
+      return d;
+    });
+  }
   
   const [classificationInfo, setClassificationInfo] = useState<ClassificationInfo | null>(null);
 
