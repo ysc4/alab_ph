@@ -92,7 +92,6 @@ router.post("/generate-forecasts", async (req, res) => {
     console.log("Testing database connection...");
     await pool.query("SELECT 1");
 
-
     for (const forecast of forecasts) {
       // Adapt to output keys from forecast_model.py
       // forecast = { station_id, t1_forecast, t2_forecast }
@@ -134,30 +133,44 @@ router.post("/generate-forecasts", async (req, res) => {
 
     console.log(`Forecast storage complete: ${insertCount} inserted, ${updateCount} updated`);
 
-    // Compute 1-day absolute error
+    // Compute 1-day absolute error using CTE for clarity
     console.log("Computing 1-day absolute error...");
     await pool.query(`
+      WITH prev_forecast AS (
+        SELECT
+          m.id AS model_id,
+          a.actual,
+          y.tomorrow
+        FROM model_heat_index m
+        JOIN heat_index a
+          ON a.station = m.station AND a.date = m.date
+        JOIN model_heat_index y
+          ON y.station = m.station AND y.date = m.date - INTERVAL '1 day'
+      )
       UPDATE model_heat_index m
-      SET "1day_abs_error" = ABS(a.actual - y.tomorrow)
-      FROM heat_index a
-      JOIN model_heat_index y
-        ON y.station = m.station
-       AND y.date = m.date - INTERVAL '1 day'
-      WHERE a.station = m.station
-        AND a.date = m.date
+      SET one_day_abs_error = ABS(p.actual - p.tomorrow)
+      FROM prev_forecast p
+      WHERE m.id = p.model_id;
     `);
 
-    // Compute 2-day absolute error
+    // Compute 2-day absolute error using CTE for clarity
     console.log("Computing 2-day absolute error...");
     await pool.query(`
+      WITH prev_forecast AS (
+        SELECT
+          m.id AS model_id,
+          a.actual,
+          t.day_after_tomorrow
+        FROM model_heat_index m
+        JOIN heat_index a
+          ON a.station = m.station AND a.date = m.date
+        JOIN model_heat_index t
+          ON t.station = m.station AND t.date = m.date - INTERVAL '2 days'
+      )
       UPDATE model_heat_index m
-      SET "2day_abs_error" = ABS(a.actual - t.day_after_tomorrow)
-      FROM heat_index a
-      JOIN model_heat_index t
-        ON t.station = m.station
-       AND t.date = m.date - INTERVAL '2 day'
-      WHERE a.station = m.station
-        AND a.date = m.date
+      SET two_day_abs_error = ABS(p.actual - p.day_after_tomorrow)
+      FROM prev_forecast p
+      WHERE m.id = p.model_id;
     `);
 
     // Verify records
