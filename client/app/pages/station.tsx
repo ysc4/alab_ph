@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { useState, useEffect } from "react";
 import Toggle from "../components/toggle";
-import { formatDate, getTrendSeries } from "../utils/dateFormatter";
+import { formatDate, getTrendSeries, formatDateShort, getRolling7DayErrorSeries } from "../utils/dateFormatter";
 import {
   Heart,
   Motorbike,
@@ -101,28 +101,6 @@ const Station: React.FC<{
   const [forecastErrorData, setForecastErrorData] = useState<ForecastErrorData[]>([]);
 
   // Utility: zero out forecast error after selected date
-  function getForecastErrorSeries(
-    selectedDate: string,
-    errorData: ForecastErrorData[]
-  ): ForecastErrorData[] {
-    const selected = new Date(selectedDate);
-    selected.setHours(0, 0, 0, 0);
-    return errorData.map((d) => {
-      // Try to parse day as date string (YYYY-MM-DD) or as day number
-      let dDate: Date | null = null;
-      if (typeof d.day === 'string') {
-        dDate = new Date(d.day);
-      } else if (typeof d.day === 'number') {
-        // Assume same month/year as selectedDate
-        dDate = new Date(selected);
-        dDate.setDate(d.day);
-      }
-      if (dDate && dDate.getTime() > selected.getTime()) {
-        return { ...d, t_plus_one: 0, t_plus_two: 0 };
-      }
-      return d;
-    });
-  }
   
   const [classificationInfo, setClassificationInfo] = useState<ClassificationInfo | null>(null);
 
@@ -351,19 +329,10 @@ const Station: React.FC<{
             {trendData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
-                  data={getTrendSeries(
-                    selectedDate,
-                    heatIndexTrendPeriod,
-                    trendData,
-                    ["temp", "pagasa_forecasted", "model_forecasted"]
-                  ).map(d => ({
-                    day: new Date(d.date).getDate(),
-                    ...d
-                  }))}
+                  data={getRolling7DayErrorSeries(trendData, selectedDate, ["temp", "model_forecasted", "pagasa_forecasted"])}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="day"/>
+                  <XAxis dataKey="day" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
@@ -376,16 +345,16 @@ const Station: React.FC<{
                   />
                   <Line
                     type="monotone"
-                    dataKey="pagasa_forecasted"
-                    stroke="#4CAF50"
-                    name="PAGASA-Forecasted Heat Index"
+                    dataKey="model_forecasted"
+                    stroke="#2196F3"
+                    name="Model-Forecasted Heat Index"
                     connectNulls
                   />
                   <Line
                     type="monotone"
-                    dataKey="model_forecasted"
-                    stroke="#2196F3"
-                    name="Model-Forecasted Heat Index"
+                    dataKey="pagasa_forecasted"
+                    stroke="#4CAF50"
+                    name="PAGASA-Forecasted Heat Index"
                     connectNulls
                   />
                 </LineChart>
@@ -405,7 +374,7 @@ const Station: React.FC<{
           </div>
           {forecastErrorData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={getForecastErrorSeries(selectedDate, forecastErrorData)}>
+              <LineChart data={getRolling7DayErrorSeries(forecastErrorData, selectedDate, ["t_plus_one", "t_plus_two"])}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
                 <YAxis />

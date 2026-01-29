@@ -1,3 +1,33 @@
+// Returns a rolling 7-day error series with day numbers as x-axis labels, ending at the selected date
+// errorKey should be the property name for the error value (e.g., 'absError1Day', 'absError2Day')
+/**
+ * Returns a rolling 7-day series with day numbers as x-axis labels, ending at the selected date.
+ * Accepts up to three keys for values (e.g., ['observed', 'avg_model_forecasted', 'avg_pagasa_forecasted'])
+ * Each output object will have properties for each key, plus day and date.
+ */
+export function getRolling7DayErrorSeries(
+  data: any[],
+  selectedDate: string,
+  errorKeys: string[]
+): { day: number; date: string; [key: string]: number | null | string }[] {
+  // Find the index of the selected date
+  const selectedIdx = data.findIndex((row) => row.date === selectedDate);
+  if (selectedIdx === -1) return [];
+  // Get the 7-day window ending at the selected date
+  const startIdx = Math.max(0, selectedIdx - 6);
+  const window = data.slice(startIdx, selectedIdx + 1);
+  // Map to day numbers (1-7), each errorKey value, and date
+  return window.map((row, i) => {
+    const entry: { day: number; date: string; [key: string]: number | null | string } = {
+      day: window.length === 7 ? i + 1 : startIdx + i + 1,
+      date: row.date,
+    };
+    for (const key of errorKeys) {
+      entry[key] = row[key] ?? null;
+    }
+    return entry;
+  });
+}
 /**
  * Generates a time series for trend graphs (week/month) with 0 after selected date.
  * @param selectedDate - The reference date (string or Date)
