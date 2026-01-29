@@ -13,6 +13,13 @@ const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
     onSelect?.(e.target.value);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent typing by blocking all keyboard input except Tab
+    if (e.key !== "Tab") {
+      e.preventDefault();
+    }
+  };
+
   return (
     <div className="relative w-50">
       <input
@@ -20,9 +27,9 @@ const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
         type="date"
         value={value || ""}
         onChange={handleDateChange}
+        onKeyDown={handleKeyDown}
         min="2023-03-01"
         max="2023-05-31"
-        readOnly
         className="
           w-full cursor-pointer
           rounded-2xl border-2 border-[#B8BBC2]
