@@ -33,6 +33,11 @@ TRAINING_FEATURES = [
 ]
 
 def main():
+    # Debug: print important paths
+    print(f"[DEBUG] BASE_DIR: {BASE_DIR}", file=sys.stderr)       
+    print(f"[DEBUG] MODEL_PATH: {MODEL_PATH}", file=sys.stderr)
+    print(f"[DEBUG] DATA_PATH: {DATA_PATH}", file=sys.stderr)
+    
     # 1. Capture date from command line (Dashboard input)
     if len(sys.argv) < 2:
         print(json.dumps({"error": "No date provided via command line"}))
@@ -49,6 +54,7 @@ def main():
         
         # 3. Load Data
         df = pd.read_csv(DATA_PATH)
+        print(f"[DEBUG] CSV loaded: {DATA_PATH}, shape: {df.shape}", file=sys.stderr)
         
         # 4. Filter data for the specific date
         # Ensure date column is string for easy comparison or convert to datetime
@@ -74,6 +80,9 @@ def main():
                 "t2_forecast": round(float(pred_pair[1]), 2)
             })
             
+        # Debug print: show all updated forecast data for home after clicking
+        print("[DEBUG] All updated forecast data for home:")
+        print(json.dumps(forecasts, indent=2))
         # Standard output for the dashboard to capture
         print(json.dumps(forecasts))
 

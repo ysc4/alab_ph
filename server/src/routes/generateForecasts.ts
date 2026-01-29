@@ -3,10 +3,19 @@ import { Router } from "express";
 import { getDB } from "../db";
 import path from "path";
 import { promisify } from "util";
-import { exec } from "child_process";
+import { exec, execSync } from "child_process";
 
 const router = Router();
+
 const execAsync = promisify(exec);
+
+// Find python3 path at runtime
+let PYTHON_EXEC = "python3";
+try {
+  PYTHON_EXEC = execSync("which python3").toString().trim();
+} catch (e) {
+  console.warn("python3 not found in PATH, falling back to 'python3'");
+}
 
 /**
  * Generate forecasts using the XGBoost model and store in model_heat_index table
@@ -47,7 +56,7 @@ router.post("/generate-forecasts", async (req, res) => {
     // Execute Python script
     console.log("Executing Python forecast model...");
     const { stdout, stderr } = await execAsync(
-      `python "${pythonScriptPath}" "${date}"`,
+      `${PYTHON_EXEC} "${pythonScriptPath}" "${date}"`,
       { maxBuffer: 1024 * 1024 * 10 }
     );
 
