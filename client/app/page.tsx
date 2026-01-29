@@ -52,18 +52,13 @@ export default function Page(): React.ReactNode {
       }
       
       alert(
-        `✅ Success!\n\n` +
-        `${result.message}\n\n` +
-        `Date: ${result.date}\n` +
-        `Tomorrow: ${result.tomorrow_date}\n` +
-        `Day After Tomorrow: ${result.day_after_tomorrow_date}\n` +
-        `Stations Processed: ${result.stations_processed}\n\n` +
-        `The page will now refresh to show the updated data.`
+        `Success!\n\n` +
+        `${result.message}\n\n`
       );
     } catch (error) {
       console.error('Error generating data:', error);
       alert(
-        `❌ Error generating forecasts:\n\n` +
+        `Error generating forecasts:\n\n` +
         `${error instanceof Error ? error.message : String(error)}`
       );
     }
