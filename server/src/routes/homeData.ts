@@ -51,7 +51,7 @@ router.get("/home-summary", async (req, res) => {
           JOIN classification c
             ON mh.tomorrow >= c.min_temp
            AND mh.tomorrow < CAST(c.max_temp AS NUMERIC) + 1
-          WHERE ${date ? "mh.date = $1" : "mh.date = (SELECT MAX(date) FROM model_heat_index mhi WHERE mhi.station = mh.station)"}
+          WHERE mh.date = $1
           GROUP BY c.level
         `,
           date ? [date] : []
