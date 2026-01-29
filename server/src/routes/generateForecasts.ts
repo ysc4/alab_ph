@@ -1,8 +1,9 @@
 import { Router } from "express";
+
 import { getDB } from "../db";
-import { exec } from "child_process";
-import { promisify } from "util";
 import path from "path";
+import { promisify } from "util";
+import { exec } from "child_process";
 
 const router = Router();
 const execAsync = promisify(exec);
@@ -82,11 +83,14 @@ router.post("/generate-forecasts", async (req, res) => {
     console.log("Testing database connection...");
     await pool.query("SELECT 1");
 
+
     for (const forecast of forecasts) {
+      // Adapt to output keys from forecast_model.py
+      // forecast = { station_id, t1_forecast, t2_forecast }
       const {
         station_id,
-        tomorrow: tomorrowTemp,
-        day_after_tomorrow: dayAfterTomorrowTemp
+        t1_forecast: tomorrowTemp,
+        t2_forecast: dayAfterTomorrowTemp
       } = forecast;
 
       try {
@@ -125,8 +129,8 @@ router.post("/generate-forecasts", async (req, res) => {
     console.log("Computing 1-day absolute error...");
     await pool.query(`
       UPDATE model_heat_index m
-      SET "1day_abs_error" = ABS(a.heat_index - y.tomorrow)
-      FROM heat_index_actual a
+      SET "1day_abs_error" = ABS(a.actual - y.tomorrow)
+      FROM heat_index a
       JOIN model_heat_index y
         ON y.station = m.station
        AND y.date = m.date - INTERVAL '1 day'
@@ -138,8 +142,8 @@ router.post("/generate-forecasts", async (req, res) => {
     console.log("Computing 2-day absolute error...");
     await pool.query(`
       UPDATE model_heat_index m
-      SET "2day_abs_error" = ABS(a.heat_index - t.day_after_tomorrow)
-      FROM heat_index_actual a
+      SET "2day_abs_error" = ABS(a.actual - t.day_after_tomorrow)
+      FROM heat_index a
       JOIN model_heat_index t
         ON t.station = m.station
        AND t.date = m.date - INTERVAL '2 day'

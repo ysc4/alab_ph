@@ -1,194 +1,86 @@
-#!/usr/bin/env python3
-"""
-Heat Index Forecast Worker (DB-free, joblib model)
-
-Outputs:
-1) JSON array of forecasts
-"""
 
 import sys
 import json
 import os
-from datetime import datetime
-
-import numpy as np
 import pandas as pd
+import numpy as np
 import xgboost as xgb
 
-# --------------------------------------------------
-# Config
-# --------------------------------------------------
+# --- Configuration ---
+# Model and data paths
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(BASE_DIR, "models", "xgb_hi_forecast_model.json")
+DATA_PATH = os.path.join(BASE_DIR, "services", "df_test_final.csv")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "../models/xgb_hi_forecast_model.json")
-DATA_PATH = os.path.join(BASE_DIR, "df_test_final.csv")
-
-# Will be populated when model is loaded (list of feature names expected by Booster)
-EXPECTED_FEATURE_NAMES = None
-
-# --------------------------------------------------
-# Helpers
-# --------------------------------------------------
-
-def load_model():
-    """Load trained XGBoost model saved as JSON (Booster)"""
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(f"Model not found at {MODEL_PATH}")
-    booster = xgb.Booster()
-    booster.load_model(MODEL_PATH)
-    # capture expected feature names if the Booster has them
-    global EXPECTED_FEATURE_NAMES
-    try:
-        EXPECTED_FEATURE_NAMES = booster.feature_names
-    except Exception:
-        EXPECTED_FEATURE_NAMES = None
-    return booster
-
-def prepare_features(station_id, df):
-    df = df.copy()
-    df["Date"] = pd.to_datetime(df["Date"])
-
-    # March–May 2023 only
-    df = df[(df["Date"] >= "2023-03-01") & (df["Date"] <= "2023-05-31")]
-
-    # Latest row per station
-    row = df[df["Station"] == station_id].tail(1)
-
-    if row.empty:
-        raise ValueError(f"No data for station {station_id}")
-
-    def v(col):
-        return float(row[col].iloc[0]) if col in row.columns else 0.0
-
-    # ...existing code...
-
-    T = v("TMAX")
-    RH = v("RH")
-    W = v("WIND_SPEED")
-
-    # Build a mapping of all candidate features
-    feat_map = {
-        "TMAX": v("TMAX"),
-        "TMIN": v("TMIN"),
-        "RH": RH,
-        "WIND_SPEED": W,
-        "Albedo_linear": v("Albedo_linear"),
-        "skin_temperature_min_C": v("skin_temperature_min_C"),
-        "skin_temperature_max_C": v("skin_temperature_max_C"),
-        "NDBI_linear": v("NDBI_linear"),
-        "NDVI_original": v("NDVI_original"),
-        "Latitude": v("Latitude"),
-        "Longitude": v("Longitude"),
-        "Elevation": v("Elevation"),
-        "Station": float(station_id),
-        "Temperature_at_RH": v("Temperature_at_RH"),
-        "Max_HI": v("Max_HI"),
-        "is_dry_season": v("is_dry_season"),
-        "is_wet_season": v("is_wet_season"),
-        "is_cool_dry_season": v("is_cool_dry_season"),
-        "is_hot_dry_season": v("is_hot_dry_season"),
-        "U_wind_component": v("U_wind_component"),
-        "V_wind_component": v("V_wind_component"),
-        "Temp_Range": v("Temp_Range"),
-        "Temp_Mean": v("Temp_Mean"),
-        "Month_sin": v("Month_sin"),
-        "Month_cos": v("Month_cos"),
-        "Day_of_Year_sin": v("Day_of_Year_sin"),
-        "Day_of_Year_cos": v("Day_of_Year_cos"),
-        "TMAX_Rolling_Mean_7": v("TMAX_Rolling_Mean_7"),
-        "TMAX_Rolling_Max_7": v("TMAX_Rolling_Max_7"),
-        "TMIN_Rolling_Mean_7": v("TMIN_Rolling_Mean_7"),
-        "TMIN_Rolling_Max_7": v("TMIN_Rolling_Max_7"),
-        "Max_HI_Rolling_Mean_7": v("Max_HI_Rolling_Mean_7"),
-        "Max_HI_Rolling_Max_7": v("Max_HI_Rolling_Max_7"),
-        "Max_HI_Rolling_Min_7": v("Max_HI_Rolling_Min_7"),
-        "RH_Rolling_Mean_7": v("RH_Rolling_Mean_7"),
-        "RH_Rolling_Min_7": v("RH_Rolling_Min_7"),
-        "TMAX_Rolling_Mean_30": v("TMAX_Rolling_Mean_30"),
-        "TMAX_Rolling_Max_30": v("TMAX_Rolling_Max_30"),
-        "TMIN_Rolling_Mean_30": v("TMIN_Rolling_Mean_30"),
-        "TMIN_Rolling_Max_30": v("TMIN_Rolling_Max_30"),
-        "Max_HI_Rolling_Mean_30": v("Max_HI_Rolling_Mean_30"),
-        "Max_HI_Rolling_Max_30": v("Max_HI_Rolling_Max_30"),
-        "Max_HI_Rolling_Min_30": v("Max_HI_Rolling_Min_30"),
-        "RH_Rolling_Mean_30": v("RH_Rolling_Mean_30"),
-        "RH_Rolling_Min_30": v("RH_Rolling_Min_30"),
-        "T^2": T**2,
-        "RH^2": RH**2,
-        "TxRH": T * RH,
-        "T^2xRH": (T**2) * RH,
-        "TxRH^2": T * (RH**2),
-        "T^2xRH^2": (T**2) * (RH**2),
-        "TMAX_x_WIND": T * W,
-    }
-
-    # temperature_at_RH lag candidates
-    for lag in [1,2,3,4,5,6,8,9,10,11,12,13]:
-        key = f"Temperature_at_RH_lag_{lag}"
-        feat_map[key] = v(key) if key in row.columns else 0.0
-
-    # Max_HI lags
-    feat_map["Max_HI_lag_1"] = v("Max_HI_lag_1") if "Max_HI_lag_1" in row.columns else 0.0
-    feat_map["Max_HI_lag_2"] = v("Max_HI_lag_2") if "Max_HI_lag_2" in row.columns else 0.0
-
-    # RH lags
-    for key in ["RH_lag_1","RH_lag_2","RH_lag_5","RH_lag_6"]:
-        feat_map[key] = v(key) if key in row.columns else 0.0
-
-    # Order features according to model expectation if available
-    if EXPECTED_FEATURE_NAMES:
-        ordered = [feat_map.get(name, 0.0) for name in EXPECTED_FEATURE_NAMES]
-        feat_df = pd.DataFrame([ordered], columns=EXPECTED_FEATURE_NAMES)
-    else:
-        feat_df = pd.DataFrame([feat_map])
-
-    return feat_df
-
-# --------------------------------------------------
-# Main
-# --------------------------------------------------
+# The exact 67 features your model was trained on
+TRAINING_FEATURES = [
+    'TMAX', 'TMIN', 'RH', 'WIND_SPEED', 'Albedo_linear', 'skin_temperature_min_C', 
+    'skin_temperature_max_C', 'NDBI_linear', 'Latitude', 'Longitude', 'Elevation', 
+    'Station', 'Temperature_at_RH', 'Max_HI', 'is_dry_season', 'is_wet_season', 
+    'is_cool_dry_season', 'is_hot_dry_season', 'U_wind_component', 'V_wind_component', 
+    'Temp_Range', 'Temp_Mean', 'Month_sin', 'Month_cos', 'Day_of_Year_sin', 
+    'Day_of_Year_cos', 'TMAX_Rolling_Mean_7', 'TMAX_Rolling_Max_7', 'TMIN_Rolling_Mean_7', 
+    'TMIN_Rolling_Max_7', 'Max_HI_Rolling_Mean_7', 'Max_HI_Rolling_Max_7', 
+    'Max_HI_Rolling_Min_7', 'RH_Rolling_Mean_7', 'RH_Rolling_Min_7', 'TMAX_Rolling_Mean_30', 
+    'TMAX_Rolling_Max_30', 'TMIN_Rolling_Mean_30', 'TMIN_Rolling_Max_30', 
+    'Max_HI_Rolling_Mean_30', 'Max_HI_Rolling_Max_30', 'Max_HI_Rolling_Min_30', 
+    'RH_Rolling_Mean_30', 'RH_Rolling_Min_30', 'T^2', 'RH^2', 'TxRH', 'T^2xRH', 
+    'TxRH^2', 'T^2xRH^2', 'TMAX_x_WIND', 'Temperature_at_RH_lag_1', 'Temperature_at_RH_lag_2', 
+    'Temperature_at_RH_lag_3', 'Temperature_at_RH_lag_4', 'Temperature_at_RH_lag_5', 
+    'Temperature_at_RH_lag_6', 'Temperature_at_RH_lag_9', 'Temperature_at_RH_lag_10', 
+    'Temperature_at_RH_lag_11', 'Temperature_at_RH_lag_12', 'Temperature_at_RH_lag_13', 
+    'Max_HI_lag_1', 'RH_lag_1', 'RH_lag_2', 'RH_lag_5', 'RH_lag_6'
+]
 
 def main():
+    # 1. Capture date from command line (Dashboard input)
     if len(sys.argv) < 2:
+        print(json.dumps({"error": "No date provided via command line"}))
         sys.exit(1)
+    
+    selected_date = sys.argv[1]
 
-    # Validate date input (API requirement only)
-    datetime.strptime(sys.argv[1], "%Y-%m-%d")
+    try:
+        # 2. Load Model
+        # Using xgb.Booster or XGBRegressor depending on how it was saved
+        # Since you used XGBRegressor().load_model in Jupyter, we stick to that:
+        model = xgb.XGBRegressor()
+        model.load_model(MODEL_PATH)
+        
+        # 3. Load Data
+        df = pd.read_csv(DATA_PATH)
+        
+        # 4. Filter data for the specific date
+        # Ensure date column is string for easy comparison or convert to datetime
+        mask = df['Date'] == selected_date
+        df_selected = df[mask].copy()
+        
+        if df_selected.empty:
+            print(json.dumps({"error": f"No data found for date {selected_date}"}))
+            sys.exit(1)
 
-    model = load_model()
-    df = pd.read_csv(DATA_PATH)
+        # 5. Extract features and Predict
+        # Ensure X_input is a DataFrame with correct columns
+        X_input = df_selected[TRAINING_FEATURES].copy()
+        predictions = model.predict(X_input) # Returns [n_samples, 2]
+        
+        # 6. Format Results for Dashboard
+        forecasts = []
+        # Zip Station IDs with their [t+1, t+2] prediction pairs
+        for station_id, pred_pair in zip(df_selected['Station'], predictions):
+            forecasts.append({
+                "station_id": int(station_id),
+                "t1_forecast": round(float(pred_pair[0]), 2),
+                "t2_forecast": round(float(pred_pair[1]), 2)
+            })
+            
+        # Standard output for the dashboard to capture
+        print(json.dumps(forecasts))
 
-    forecasts = []
-    station_ids = df["Station"].unique()
-
-    for sid in station_ids:
-        # Predict for tomorrow
-        tomorrow_date = pd.to_datetime(sys.argv[1]) + pd.Timedelta(days=1)
-        tomorrow_df = df.copy()
-        tomorrow_df["Date"] = pd.to_datetime(tomorrow_df["Date"])
-        tomorrow_features = prepare_features(sid, tomorrow_df[tomorrow_df["Date"] == tomorrow_date])
-        dmat_tomorrow = xgb.DMatrix(tomorrow_features)
-        preds_tomorrow = model.predict(dmat_tomorrow)
-        pred_tomorrow = float(np.asarray(preds_tomorrow).ravel()[0])
-        pred_tomorrow = round(max(27.0, min(55.0, pred_tomorrow)), 2)
-
-        # Predict for day after tomorrow
-        day_after_date = pd.to_datetime(sys.argv[1]) + pd.Timedelta(days=2)
-        day_after_df = df.copy()
-        day_after_df["Date"] = pd.to_datetime(day_after_df["Date"])
-        day_after_features = prepare_features(sid, day_after_df[day_after_df["Date"] == day_after_date])
-        dmat_day_after = xgb.DMatrix(day_after_features)
-        preds_day_after = model.predict(dmat_day_after)
-        pred_day_after = float(np.asarray(preds_day_after).ravel()[0])
-        pred_day_after = round(max(27.0, min(55.0, pred_day_after)), 2)
-
-        forecasts.append({
-            "station_id": int(sid) + 1,
-            "tomorrow": pred_tomorrow,
-            "day_after_tomorrow": pred_day_after
-        })
-
-    print(json.dumps(forecasts))
+    except Exception as e:
+        # Return error as JSON so the dashboard doesn't break
+        print(json.dumps({"error": str(e)}))
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
