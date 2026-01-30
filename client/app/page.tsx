@@ -13,7 +13,7 @@ type PageKey = "Home" | "Map" | "Station";
 export default function Page(): React.ReactNode {
   const [activePage, setActivePage] = useState<PageKey>("Home");
   const [selectedStationId, setSelectedStationId] = useState<number>(1); // Ambulong
-  const [selectedDate, setSelectedDate] = useState<string>('2023-03-02'); // March 2, 2023
+  const [selectedDate, setSelectedDate] = useState<string>('2023-03-03'); // March 3, 2023
   const homeRef = useRef<{ downloadData: () => void; refreshData: () => void }>(null);
 
   const handleDownload = () => {
