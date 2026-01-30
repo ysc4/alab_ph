@@ -346,7 +346,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
     <div className="grid gap-6">
       <div className="p-6 bg-white rounded-xl shadow flex flex-col">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-2xl font-extrabold">Luzon-wide Heat Index</h2>
+          <h2 className="text-2xl font-extrabold">Luzon-wide Forecasted Heat Index</h2>
           <Toggle options={["Week", "Month"]} onSelect={(selected) => setHeatIndexPeriod(selected as "Week" | "Month")} />
         </div>
         <div className="flex-1 w-full">
