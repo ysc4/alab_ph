@@ -94,8 +94,8 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ title, activePage, selectedDate, selectedStationId, onStationSelect, onDateSelect, onDownload, onGenerateData }) => {
   return (
     <header className="flex items-center justify-between pt-8">
-      <h1 className="text-[36px] font-extrabold italic text-text-primary">
-        <span style={{ fontWeight: 'bolder', fontStyle: 'italic' }}>alab-ph</span>
+      <h1 className="text-[36px] font-extrabold text-text-primary">
+        <span style={{ fontWeight: 'bolder' }}>{title}</span>
       </h1>
       {activePage === "Home" && (
         <div className="flex gap-4">
