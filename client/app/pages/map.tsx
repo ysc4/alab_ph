@@ -163,10 +163,6 @@ export default function HeatMapDummy({ selectedDate }: MapProps) {
             <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#B71C1C", border: "2px solid white" }}></div>
             <span style={{ fontSize: "12px", color: "#666" }}>Extreme Danger (52°C+)</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#9E9E9E", border: "2px solid white" }}></div>
-            <span style={{ fontSize: "12px", color: "#666" }}>No Data</span>
-          </div>
         </div>
       </div>
 
