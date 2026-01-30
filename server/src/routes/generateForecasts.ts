@@ -4,6 +4,7 @@ import { getDB } from "../db";
 import path from "path";
 import { promisify } from "util";
 import { exec, execSync } from "child_process";
+import { connectRedis } from "../utils/redisClient";
 
 const router = Router();
 
@@ -196,6 +197,44 @@ router.post("/generate-forecasts", async (req, res) => {
       error: "Failed to generate forecasts",
       details: error instanceof Error ? error.message : String(error)
     });
+  }
+});
+
+
+// Helper to get forecasts for a date
+async function getForecasts(date: string) {
+  const pool = getDB();
+  const result = await pool.query(
+    `SELECT station, tomorrow AS t1_forecast, day_after_tomorrow AS t2_forecast
+     FROM model_heat_index
+     WHERE date = $1
+     ORDER BY station`,
+    [date]
+  );
+  return result.rows.map(row => ({
+    station: row.station,
+    t1_forecast: row.t1_forecast !== null ? Number(row.t1_forecast) : null,
+    t2_forecast: row.t2_forecast !== null ? Number(row.t2_forecast) : null
+  }));
+}
+
+// Add caching to /generate-forecasts (GET only)
+router.get("/generate-forecasts", async (req, res) => {
+  try {
+    const { date } = req.query;
+    const selectedDate = typeof date === 'string' ? date : new Date().toISOString().split("T")[0];
+    const cacheKey = `generate-forecasts:${selectedDate}`;
+    const redis = await connectRedis();
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return res.json(JSON.parse(cached));
+    }
+    const forecasts = await getForecasts(selectedDate);
+    await redis.setEx(cacheKey, 60, JSON.stringify(forecasts));
+    res.json(forecasts);
+  } catch (err) {
+    console.error("Error in /generate-forecasts:", err);
+    res.status(500).json({ error: "Failed to generate forecasts" });
   }
 });
 
