@@ -140,7 +140,7 @@ router.post("/generate-forecasts", async (req, res) => {
         SELECT
           m.id AS model_id,
           a.actual,
-          y.tomorrow
+          y.tomorrow AS forecasted_for_today
         FROM model_heat_index m
         JOIN heat_index a
           ON a.station = m.station AND a.date = m.date
@@ -148,7 +148,7 @@ router.post("/generate-forecasts", async (req, res) => {
           ON y.station = m.station AND y.date = m.date - INTERVAL '1 day'
       )
       UPDATE model_heat_index m
-      SET one_day_abs_error = ABS(p.actual - p.tomorrow)
+      SET one_day_abs_error = ABS(p.actual - p.forecasted_for_today)
       FROM prev_forecast p
       WHERE m.id = p.model_id;
     `);
@@ -160,7 +160,7 @@ router.post("/generate-forecasts", async (req, res) => {
         SELECT
           m.id AS model_id,
           a.actual,
-          t.day_after_tomorrow
+          t.day_after_tomorrow AS forecasted_for_today
         FROM model_heat_index m
         JOIN heat_index a
           ON a.station = m.station AND a.date = m.date
@@ -168,7 +168,7 @@ router.post("/generate-forecasts", async (req, res) => {
           ON t.station = m.station AND t.date = m.date - INTERVAL '2 days'
       )
       UPDATE model_heat_index m
-      SET two_day_abs_error = ABS(p.actual - p.day_after_tomorrow)
+      SET two_day_abs_error = ABS(p.actual - p.forecasted_for_today)
       FROM prev_forecast p
       WHERE m.id = p.model_id;
     `);
