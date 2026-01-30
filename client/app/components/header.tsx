@@ -1,6 +1,82 @@
-import React from "react";
+
+import React, { useRef, useState } from "react";
+import { Download, CloudSun } from "lucide-react";
 import DateSelector from "./date-selector";
 import StationSelector from "./station-selector";
+
+// TooltipButton component for floating tooltip at cursor
+interface TooltipButtonProps {
+  icon: React.ReactNode;
+  onClick?: () => void;
+  label: string;
+}
+
+const TooltipButton: React.FC<TooltipButtonProps> = ({ icon, onClick, label }) => {
+  const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <div style={{ height: 48, position: "relative", display: "flex", alignItems: "center" }}>
+      <button
+        ref={btnRef}
+        className="rounded-full flex items-center justify-center bg-transparent transition-colors focus:outline-none"
+        style={{
+          width: 48,
+          height: 48,
+          border: "2px solid var(--primary)",
+          color: "var(--primary)",
+          boxSizing: "border-box",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          verticalAlign: "middle",
+          padding: 0,
+          background: tooltip ? "var(--primary)" : "transparent",
+          transition: "background 0.2s, color 0.2s"
+        }}
+        onMouseEnter={e => {
+          setTooltip({ x: e.clientX, y: e.clientY });
+          e.currentTarget.style.background = 'var(--primary)';
+          e.currentTarget.style.color = '#fff';
+        }}
+        onMouseMove={e => {
+          setTooltip({ x: e.clientX, y: e.clientY });
+        }}
+        onMouseLeave={e => {
+          setTooltip(null);
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.color = 'var(--primary)';
+        }}
+        onClick={onClick}
+        aria-label={label}
+      >
+        {icon}
+      </button>
+      {tooltip && (
+        <div
+          style={{
+            position: "fixed",
+            left: tooltip.x + 12,
+            top: tooltip.y + 12,
+            zIndex: 9999,
+            background: "#1E293B",
+            color: "#fff",
+            padding: "6px 12px",
+            borderRadius: 6,
+            fontSize: 13,
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            opacity: 1,
+            transition: "opacity 0.15s"
+          }}
+        >
+          {label}
+        </div>
+      )}
+    </div>
+  );
+};
 
 type PageKey = "Home" | "Map" | "Station";
 
@@ -23,28 +99,16 @@ const Header: React.FC<HeaderProps> = ({ title, activePage, selectedDate, select
       </h1>
       {activePage === "Home" && (
         <div className="flex gap-4">
-          <button 
-            className="px-4 py-2 rounded-2xl focus:outline-none hover:shadow-lg"
-            style={{ 
-              backgroundColor: '#10B981', 
-              color: 'white', 
-              fontWeight: '500'
-            }}
+          <TooltipButton
+            icon={<CloudSun className="w-5 h-5 icon-forecast" style={{ color: 'inherit', transition: 'color 0.2s' }} />}
             onClick={onGenerateData}
-          >
-            Forecast
-          </button>
-          <button 
-            className="px-4 py-2 rounded-2xl focus:outline-none hover:shadow-lg"
-            style={{ 
-              backgroundColor: '#1666BA', 
-              color: 'white', 
-              fontWeight: '500'
-            }}
+            label="Forecast Heat Index"
+          />
+          <TooltipButton
+            icon={<Download className="w-5 h-5 icon-download" style={{ color: 'inherit', transition: 'color 0.2s' }} />}
             onClick={onDownload}
-          >
-            Download
-          </button>
+            label="Download Forecast Report"
+          />
           <DateSelector value={selectedDate} onSelect={onDateSelect} />
         </div>
       )}
