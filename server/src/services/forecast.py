@@ -81,14 +81,14 @@ def main():
             if predictions.shape[1] >= 2:
                 # Model outputs 2 values per sample
                 forecasts.append({
-                    "station_id": int(station_id) + 1,
+                    "station": int(station_id) + 1,
                     "t1_forecast": round(float(pred_row[0]), 2),
                     "t2_forecast": round(float(pred_row[1]), 2)
                 })
             else:
                 # Model outputs 1 value per sample
                 forecasts.append({
-                    "station_id": int(station_id) + 1,
+                    "station": int(station_id) + 1,
                     "t1_forecast": round(float(pred_row[0]), 2),
                     "t2_forecast": round(float(pred_row[0]), 2)
                 })
