@@ -19,14 +19,9 @@ const getStationQuery = (stationFilter: string) => `
     ${getRiskLevelCase('hi.model_forecasted')} AS riskLevel,
     COALESCE(hi.date::text, $1::text) AS selectedDate
   FROM stations s
-  LEFT JOIN LATERAL (
-    SELECT *
-    FROM heat_index
-    WHERE station = s.id
-    AND ($1::text IS NULL OR date::text = $1)
-    ORDER BY date DESC
-    LIMIT 1
-  ) hi ON true
+  LEFT JOIN heat_index hi
+  ON hi.station = s.id
+  AND ($1::text IS NULL OR hi.date::text = $1)
   LEFT JOIN classification c
     ON hi.model_forecasted >= c.min_temp AND hi.model_forecasted < CAST(c.max_temp AS NUMERIC) + 1
   WHERE s.latitude IS NOT NULL
