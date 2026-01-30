@@ -1,17 +1,18 @@
 /**
  * Generates a time series for trend graphs (week/month) with 0 after selected date.
+ * Backend already filters data to correct range, this just formats it.
  * @param selectedDate - The reference date (string or Date)
  * @param period - "Week" or "Month"
- * @param trendData - Array of objects with date and values (optional)
+ * @param trendData - Array of objects with date and values (already filtered by backend)
  * @param keys - Array of keys to fill (e.g. ["temp", "pagasa_forecasted", "model_forecasted"])
- * @returns Array of objects for charting
+ * @returns Array of objects for charting with day numbers
  */
 export function getTrendSeries(
   selectedDate: string | Date,
   period: "Week" | "Month",
   trendData?: Array<{ date: string; [key: string]: any }> | null,
   keys: string[] = []
-): Array<{ date: string; [key: string]: any }> {
+): Array<{ day: number; date: string; [key: string]: any }> {
   // Normalize selected date to midnight for accurate comparison
   const selected = new Date(selectedDate);
   selected.setHours(0, 0, 0, 0);
@@ -21,59 +22,78 @@ export function getTrendSeries(
     return [];
   }
 
-  // Filter for week or month
-  let filtered = trendData;
-  if (period === "Week") {
-    // Rolling 7-day window ending at selected date
-    const dataMap = new Map(
-      trendData.map(d => [new Date(d.date).toISOString().slice(0, 10), d])
-    );
-    const weekSeries = [];
-    let current = new Date(selected);
-    current.setDate(current.getDate() - 6); // 6 days before selected date
-    for (let i = 0; i < 7; i++) {
-      const dateStr = current.toISOString().slice(0, 10);
-      const d = dataMap.get(dateStr);
-      const dDate = new Date(dateStr);
-      dDate.setHours(0, 0, 0, 0);
-      let entry: any = { date: dateStr };
-      if (d) {
-        for (const key of keys) {
-          entry[key] = dDate.getTime() > selected.getTime() ? 0 : d[key] ?? 0;
-        }
-      } else {
-        for (const key of keys) {
-          entry[key] = dDate.getTime() > selected.getTime() ? 0 : 0;
-        }
+  // Backend already filters for Week (7 days) or Month
+  // We just need to add day numbers and zero out future dates
+  return trendData.map((d) => {
+    const dDate = new Date(d.date);
+    dDate.setHours(0, 0, 0, 0);
+    
+    const entry: any = { 
+      day: dDate.getDate(),
+      date: d.date 
+    };
+    
+    // Zero out values after selected date
+    if (dDate.getTime() > selected.getTime()) {
+      for (const key of keys) {
+        entry[key] = 0;
       }
-      weekSeries.push(entry);
-      current.setDate(current.getDate() + 1);
-    }
-    return weekSeries;
-  } else if (period === "Month") {
-    filtered = trendData.filter(d => {
-      const dDate = new Date(d.date);
-      return dDate.getFullYear() === selected.getFullYear() && dDate.getMonth() === selected.getMonth();
-    });
-    return filtered.map((d) => {
-      const dDate = new Date(d.date);
-      dDate.setHours(0, 0, 0, 0);
-      if (dDate.getTime() > selected.getTime()) {
-        const entry: any = { date: d.date };
-        for (const key of keys) {
-          entry[key] = 0;
-        }
-        return entry;
-      }
-      const entry: any = { date: d.date };
+    } else {
       for (const key of keys) {
         entry[key] = d[key] ?? 0;
       }
-      return entry;
-    });
-  }
-  // Fallback: if period is not Week or Month, return empty array
-  return [];
+    }
+    
+    return entry;
+  });
+}
+
+/**
+ * Generates forecast error series (backend already filters to correct range)
+ * @param selectedDate - The reference date
+ * @param errorData - Array of forecast error objects (already filtered by backend)
+ * @returns Array with future dates zeroed out
+ */
+export function getForecastErrorSeries<T extends { day: string | number; date?: string; [key: string]: any }>(
+  selectedDate: string,
+  errorData: T[]
+): T[] {
+  const selected = new Date(selectedDate);
+  selected.setHours(0, 0, 0, 0);
+
+  // Backend already filters the data, we just need to zero out future dates
+  return errorData.map((d) => {
+    let dDate: Date | null = null;
+    
+    // Try to use date field if available
+    if (d.date && typeof d.date === 'string') {
+      dDate = new Date(d.date);
+    } else if (typeof d.day === 'string') {
+      dDate = new Date(d.day);
+    } else if (typeof d.day === 'number') {
+      // Assume same month/year as selectedDate
+      dDate = new Date(selected);
+      dDate.setDate(d.day);
+    }
+    
+    if (dDate) {
+      dDate.setHours(0, 0, 0, 0);
+      
+      // Zero out values after selected date
+      if (dDate.getTime() > selected.getTime()) {
+        const zeroed = { ...d } as any;
+        // Zero out numeric fields (typically t_plus_one, t_plus_two)
+        for (const key in zeroed) {
+          if (typeof zeroed[key] === 'number' && key !== 'day') {
+            zeroed[key] = 0;
+          }
+        }
+        return zeroed;
+      }
+    }
+    
+    return d;
+  });
 }
 
 export const formatDate = (dateString: string | Date | null | undefined): string => {
@@ -93,7 +113,6 @@ export const formatDateShort = (dateString: string | Date | null | undefined): s
 export const getWeekOfMonth = (dateString: string | Date): number => {
   const date = new Date(dateString);
   const dayOfMonth = date.getDate();
-  // Simple week calculation: Week 1 = days 1-7, Week 2 = days 8-14, etc.
   return Math.ceil(dayOfMonth / 7);
 };
 
@@ -111,7 +130,6 @@ export function getISOWeek(dateStr: string): { week: number; year: number } {
   const date = new Date(dateStr);
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
 
-  // ISO week starts Monday
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
 
@@ -124,21 +142,20 @@ export function getISOWeek(dateStr: string): { week: number; year: number } {
   };
 }
 
+/**
+ * Get rolling 7-day range (6 days before selected date + selected date)
+ * @param dateStr - The selected date
+ * @returns Object with startDate and endDate in YYYY-MM-DD format
+ */
 export function getISOWeekRange(dateStr: string): { startDate: string; endDate: string } {
   const date = new Date(dateStr);
   
-  // Get day of week (0 = Sunday, 1 = Monday, ...)
-  const dayOfWeek = date.getDay();
-  // Calculate days to Monday (ISO week starts on Monday)
-  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  
-  // Get Monday of the ISO week
+  // Start date: 6 days before selected date
   const startOfWeek = new Date(date);
-  startOfWeek.setDate(date.getDate() - daysToMonday);
+  startOfWeek.setDate(date.getDate() - 6);
   
-  // Get Sunday of the ISO week
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  // End date: selected date itself
+  const endOfWeek = new Date(date);
   
   return {
     startDate: startOfWeek.toISOString().split('T')[0],

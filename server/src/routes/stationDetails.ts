@@ -81,8 +81,8 @@ router.get('/station/:stationId/summary', async (req, res) => {
       // Absolute errors from model_heat_index
       pool.query(
         `SELECT
-          ROUND(COALESCE("one_day_abs_error", 0)::numeric, 1) as "one_day_abs_error",
-          ROUND(COALESCE("two_day_abs_error", 0)::numeric, 1) as "two_day_abs_error"
+          ROUND(COALESCE(one_day_abs_error, 0)::numeric, 1) as one_day_abs_error,
+          ROUND(COALESCE(two_day_abs_error, 0)::numeric, 1) as two_day_abs_error
         FROM model_heat_index
         WHERE station = $1
         ${date ? 'AND date = $2' : ''}
@@ -144,8 +144,8 @@ router.get('/station/:stationId/summary', async (req, res) => {
       rsquared_2day: 0,
     };
     const absErrors = absErrorResult.rows[0] || {
-      "one_day_abs_error": 0,
-      "two_day_abs_error": 0,
+      one_day_abs_error: 0,
+      two_day_abs_error: 0,
     };
 
     res.json({
@@ -171,8 +171,8 @@ router.get('/station/:stationId/summary', async (req, res) => {
         rmse_2day: metrics.rmse_2day,
         mae_2day: metrics.mae_2day,
         rsquared_2day: metrics.rsquared_2day,
-        absError1Day: absErrors['one_day_abs_error'],
-        absError2Day: absErrors['two_day_abs_error'],
+        absError1Day: absErrors.one_day_abs_error,
+        absError2Day: absErrors.two_day_abs_error,
       }
     });
 
@@ -182,7 +182,7 @@ router.get('/station/:stationId/summary', async (req, res) => {
   }
 });
 
-// Station trend data (KEEP - has range toggle)
+// Station trend data (has range toggle)
 router.get('/station/:stationId/trend', async (req, res) => {
   try {
     const { stationId } = req.params;
@@ -192,7 +192,13 @@ router.get('/station/:stationId/trend', async (req, res) => {
     let dateCondition = '';
     
     if (date) {
-      if (range === 'Week' || range === 'Month') {
+      if (range === 'Week') {
+        // Rolling 7-day window: 6 days before + selected date
+        const selectedDate = new Date(date as string);
+        const startDate = new Date(selectedDate);
+        startDate.setDate(selectedDate.getDate() - 6);
+        dateCondition = `AND date >= '${startDate.toISOString().split('T')[0]}' AND date <= '${date}'`;
+      } else if (range === 'Month') {
         dateCondition = `AND ${getDateRangeCondition(date as string, range as string)}`;
       } else {
         dateCondition = `AND date <= '${date}'`;
@@ -211,20 +217,18 @@ router.get('/station/:stationId/trend', async (req, res) => {
       FROM heat_index
       WHERE station = $1
       ${dateCondition}
-      ORDER BY date DESC
+      ORDER BY date ASC
       ${limitClause}
     `;
 
     const trendResult = await pool.query(trendQuery, [stationId]);
 
-    const result = trendResult.rows
-      .map(row => ({
-        date: row.date,
-        temp: row.temp ? Number(row.temp) : null,
-        pagasa_forecasted: row.pagasa_forecasted ? Number(row.pagasa_forecasted) : null,
-        model_forecasted: row.model_forecasted ? Number(row.model_forecasted) : null,
-      }))
-      .reverse();
+    const result = trendResult.rows.map(row => ({
+      date: row.date,
+      temp: row.temp ? Number(row.temp) : null,
+      pagasa_forecasted: row.pagasa_forecasted ? Number(row.pagasa_forecasted) : null,
+      model_forecasted: row.model_forecasted ? Number(row.model_forecasted) : null,
+    }));
 
     res.json(result);
 
@@ -234,22 +238,31 @@ router.get('/station/:stationId/trend', async (req, res) => {
   }
 });
 
-
-// Station-specific forecast error trend (KEEP - has range toggle)
+// Station-specific forecast error trend (has range toggle)
 router.get('/station/:stationId/forecast-error', async (req, res) => {
   try {
     const { stationId } = req.params;
     const { range, date } = req.query;
     const pool = getDB();
-    const isMonth = range === 'Month';
 
-    const dateCondition = getDateRangeCondition(date as string, range as string);
+    let dateCondition: string;
+    
+    if (range === 'Week' && date) {
+      // Rolling 7-day window: 6 days before + selected date
+      const selectedDate = new Date(date as string);
+      const startDate = new Date(selectedDate);
+      startDate.setDate(selectedDate.getDate() - 6);
+      dateCondition = `date >= '${startDate.toISOString().split('T')[0]}' AND date <= '${date}'`;
+    } else {
+      dateCondition = getDateRangeCondition(date as string, range as string);
+    }
 
     const result = await pool.query(
       `SELECT
+        date,
         EXTRACT(DAY FROM date)::integer AS day,
-        COALESCE("one_day_abs_error", 0) AS t_plus_one,
-        COALESCE("two_day_abs_error", 0) AS t_plus_two
+        COALESCE(one_day_abs_error, 0) AS t_plus_one,
+        COALESCE(two_day_abs_error, 0) AS t_plus_two
       FROM model_heat_index
       WHERE station = $1 AND ${dateCondition}
       ORDER BY date ASC`,

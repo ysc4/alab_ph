@@ -4,19 +4,152 @@ import { getDateRangeCondition, roundNumeric } from "../utils/queryHelpers";
 
 const router = Router();
 
+// Constants
+const COLOR_MAP: Record<string, string> = {
+  Caution: "#FFD700",
+  "Extreme Caution": "#FFA500",
+  Danger: "#FF4500",
+  "Extreme Danger": "#8B0000"
+};
+
+const SORT_ORDER: Record<string, number> = {
+  Caution: 1,
+  "Extreme Caution": 2,
+  Danger: 3,
+  "Extreme Danger": 4
+};
+
+const DANGER_THRESHOLD = 41;
+
+/**
+ * Helper: Get date condition for queries
+ */
+const getDateCondition = (date?: string) => {
+  return date
+    ? "h.date = $1"
+    : `h.date = (
+        SELECT MAX(date)
+        FROM heat_index hi
+        WHERE hi.station = h.station
+      )`;
+};
+
+/**
+ * Helper: Calculate summary statistics from station data
+ */
+const calculateSummary = (stations: any[]) => {
+  if (stations.length === 0) {
+    return {
+      max: 0,
+      max_station: "",
+      min: 0,
+      min_station: "",
+      avg: 0,
+      danger_count: 0,
+      fastest_increasing_station: "",
+      fastest_increasing_trend: 0,
+    };
+  }
+
+  const forecasts = stations.map(s => Number(s.forecasted));
+  const max = Math.max(...forecasts);
+  const min = Math.min(...forecasts);
+  const avg = forecasts.reduce((a, b) => a + b, 0) / forecasts.length;
+  const danger_count = stations.filter(s => Number(s.forecasted) >= DANGER_THRESHOLD).length;
+
+  const maxStation = stations.reduce((prev, curr) =>
+    Number(curr.forecasted) > Number(prev.forecasted) ? curr : prev
+  );
+
+  const minStation = stations.reduce((prev, curr) =>
+    Number(curr.forecasted) < Number(prev.forecasted) ? curr : prev
+  );
+
+  const fastestStation = stations.reduce((prev, current) =>
+    Number(current.trend) > Number(prev.trend) ? current : prev
+  );
+
+  return {
+    max: Number(max.toFixed(2)),
+    max_station: maxStation?.station_name || "",
+    min: Number(min.toFixed(2)),
+    min_station: minStation?.station_name || "",
+    avg: Number(avg.toFixed(2)),
+    danger_count,
+    fastest_increasing_station: fastestStation.station_name,
+    fastest_increasing_trend: Number(Number(fastestStation.trend).toFixed(2)),
+  };
+};
+
+/**
+ * Helper: Get trend data with correct date range
+ */
+const getTrendData = async (pool: any, date?: string, range?: string) => {
+  if (!date) {
+    return { rows: [] };
+  }
+
+  const d = new Date(date);
+  let startDate: string;
+  let endDate: string;
+
+  if (range === 'Week') {
+    // Rolling 7-day window: 6 days before + selected date
+    const start = new Date(d);
+    start.setDate(d.getDate() - 6);
+    startDate = start.toISOString().slice(0, 10);
+    endDate = d.toISOString().slice(0, 10);
+  } else {
+    // Month: full month of selected date
+    startDate = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+    endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  }
+
+  const trendQuery = `
+    SELECT 
+      date, 
+      ROUND(AVG(model_forecasted)::numeric, 2) AS avg_model_forecasted, 
+      ROUND(AVG(pagasa_forecasted)::numeric, 2) AS avg_pagasa_forecasted, 
+      ROUND(AVG(actual)::numeric, 2) AS observed
+    FROM heat_index
+    WHERE date >= $1 AND date <= $2
+    GROUP BY date
+    ORDER BY date
+  `;
+
+  const trendRows = (await pool.query(trendQuery, [startDate, endDate])).rows;
+  return { rows: trendRows };
+};
+
+/**
+ * Format synoptic data with colors and sorting
+ */
+const formatSynopticData = (rows: any[]) => {
+  return rows
+    .map(row => ({
+      name: row.name,
+      value: Number(row.value),
+      color: COLOR_MAP[row.name] || "#999999"
+    }))
+    .sort((a, b) => (SORT_ORDER[a.name] || 999) - (SORT_ORDER[b.name] || 999));
+};
+
 /**
  * Home Summary Route
  */
-
 router.get("/home-summary", async (req, res) => {
   try {
     const pool = getDB();
     const { date, range } = req.query;
+    const dateStr = date as string | undefined;
+    const rangeStr = range as string | undefined;
 
-    const [summaryResult, synopticResult, trendResult] =
-      await Promise.all([
-        pool.query(
-          `
+    const dateCondition = getDateCondition(dateStr);
+
+    const [summaryResult, synopticResult, trendResult] = await Promise.all([
+      // Summary query
+      pool.query(
+        `
           SELECT DISTINCT ON (mh.station)
             mh.station,
             s.station AS station_name,
@@ -27,14 +160,15 @@ router.get("/home-summary", async (req, res) => {
           LEFT JOIN heat_index h
             ON h.station = mh.station
            AND h.date = mh.date
-          ${date ? "WHERE mh.date = $1" : ""}
+          ${dateStr ? "WHERE mh.date = $1" : ""}
           ORDER BY mh.station, mh.date DESC
         `,
-          date ? [date] : []
-        ),
+        dateStr ? [dateStr] : []
+      ),
 
-        pool.query(
-          `
+      // Synoptic classification query
+      pool.query(
+        `
           SELECT
             c.level AS name,
             COUNT(DISTINCT mh.station) AS value
@@ -46,123 +180,24 @@ router.get("/home-summary", async (req, res) => {
           WHERE mh.date = $1
           GROUP BY c.level
         `,
-          date ? [date] : []
-        ),
+        dateStr ? [dateStr] : []
+      ),
 
-        // Trend query: daily average for the full month of the selected date, always include the selected date
-        (async () => {
-          if (!date) return pool.query('SELECT date, 0 as model_forecasted, 0 as pagasa_forecasted, 0 as temp WHERE false');
-          const range = (req.query.range as string) || 'Month';
-          const dateCondition = getDateRangeCondition(date as string, range);
-          const trendQuery = `
-            SELECT
-              TO_CHAR(date, 'YYYY-MM-DD') as date,
-              ${roundNumeric('AVG(actual)')} AS temp,
-              ${roundNumeric('AVG(pagasa_forecasted)')} AS pagasa_forecasted,
-              ${roundNumeric('AVG(model_forecasted)')} AS model_forecasted
-            FROM heat_index
-            WHERE ${dateCondition}
-            GROUP BY date
-            ORDER BY date
-          `;
-          let trendRows = (await pool.query(trendQuery)).rows;
-          // Ensure selected date is present if any station has data for it
-          const selectedStr = new Date(date as string).toISOString().slice(0, 10);
-          if (!trendRows.some(row => row.date === selectedStr)) {
-            // Try to compute the average for the selected date only
-            const singleDay = (await pool.query(
-              `SELECT TO_CHAR(date, 'YYYY-MM-DD') as date,
-                ${roundNumeric('AVG(actual)')} AS temp,
-                ${roundNumeric('AVG(pagasa_forecasted)')} AS pagasa_forecasted,
-                ${roundNumeric('AVG(model_forecasted)')} AS model_forecasted
-                FROM heat_index
-                WHERE date = $1
-                GROUP BY date`,
-              [selectedStr]
-            )).rows;
-            if (singleDay.length > 0) {
-              trendRows.push(singleDay[0]);
-            } else {
-              trendRows.push({
-                date: selectedStr,
-                model_forecasted: 0,
-                pagasa_forecasted: 0,
-                temp: 0
-              });
-            }
-            trendRows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-          }
-          return { rows: trendRows };
-        })()
-      ]);
+      // Trend query
+      getTrendData(pool, dateStr, rangeStr)
+    ]);
 
     const stations = summaryResult.rows;
-
-    let summary = {
-      max: 0,
-      max_station: "",
-      min: 0,
-      min_station: "",
-      avg: 0,
-      danger_count: 0,
-      fastest_increasing_station: "",
-      fastest_increasing_trend: 0,
-    };
-
-    if (stations.length > 0) {
-      const forecasts = stations.map(s => Number(s.forecasted));
-      const max = forecasts.length > 0 ? Number(Math.max(...forecasts).toFixed(2)) : 0;
-      const min = forecasts.length > 0 ? Number(Math.min(...forecasts).toFixed(2)) : 0;
-      const avg = forecasts.length > 0 ? Number((forecasts.reduce((a, b) => a + b, 0) / forecasts.length).toFixed(2)) : 0;
-      const danger_count = stations.filter(s => Number(s.forecasted) >= 41).length;
-      const maxStation = stations.reduce((prev, curr) => Number(curr.forecasted) > Number(prev.forecasted) ? curr : prev);
-      const minStation = stations.reduce((prev, curr) => Number(curr.forecasted) < Number(prev.forecasted) ? curr : prev);
-      const fastestStation = stations.reduce((prev, current) => Number(current.trend) > Number(prev.trend) ? current : prev);
-      summary = {
-        max,
-        max_station: maxStation?.station_name || "",
-        min,
-        min_station: minStation?.station_name || "",
-        avg,
-        danger_count,
-        fastest_increasing_station: fastestStation.station_name,
-        fastest_increasing_trend: Number(Number(fastestStation.trend).toFixed(2)),
-      };
-    }
-
-    const colorMap: Record<string, string> = {
-      Caution: "#FFD700",
-      "Extreme Caution": "#FFA500",
-      Danger: "#FF4500",
-      "Extreme Danger": "#8B0000"
-    };
-
-    const sortOrder: Record<string, number> = {
-      Caution: 1,
-      "Extreme Caution": 2,
-      Danger: 3,
-      "Extreme Danger": 4
-    };
-
-    const synoptic = synopticResult.rows
-      .map(row => ({
-        name: row.name,
-        value: Number(row.value),
-        color: colorMap[row.name] || "#999999"
-      }))
-      .sort(
-        (a, b) =>
-          (sortOrder[a.name] || 999) - (sortOrder[b.name] || 999)
-      );
-
+    const summary = calculateSummary(stations);
+    const synoptic = formatSynopticData(synopticResult.rows);
     const trend = trendResult.rows;
+
     res.json({ summary, synoptic, trend });
   } catch (err) {
-    console.error(err);
+    console.error("Error in /home-summary:", err);
     res.status(500).json({ error: "Failed to load home summary" });
   }
 });
-
 
 /**
  * Forecast Error Route
@@ -171,40 +206,54 @@ router.get("/forecast-error", async (req, res) => {
   try {
     const pool = getDB();
     const { range, date } = req.query;
-    const dateCondition = getDateRangeCondition(date as string, range as string);
+    
+    let dateCondition: string;
+    
+    if (range === 'Week' && date) {
+      // Rolling 7-day window: 6 days before + selected date
+      const selectedDate = new Date(date as string);
+      const startDate = new Date(selectedDate);
+      startDate.setDate(selectedDate.getDate() - 6);
+      
+      dateCondition = `date >= '${startDate.toISOString().split('T')[0]}' AND date <= '${date}'`;
+    } else {
+      dateCondition = getDateRangeCondition(date as string, range as string);
+    }
 
     const result = await pool.query(`
       SELECT
+        date,
         EXTRACT(DAY FROM date)::integer AS day,
-        ${roundNumeric('AVG("one_day_abs_error")', 0, 2)} AS t_plus_one,
-        ${roundNumeric('AVG("two_day_abs_error")', 0, 2)} AS t_plus_two
+        ${roundNumeric('AVG(one_day_abs_error)', 0, 2)} AS t_plus_one,
+        ${roundNumeric('AVG(two_day_abs_error)', 0, 2)} AS t_plus_two
       FROM model_heat_index
       WHERE ${dateCondition}
-      GROUP BY EXTRACT(DAY FROM date)
-      ORDER BY day
+      GROUP BY date
+      ORDER BY date
     `);
 
     const formatted = result.rows.map(row => ({
       day: row.day,
+      date: row.date,
       t_plus_one: row.t_plus_one ? Number(row.t_plus_one) : 0,
       t_plus_two: row.t_plus_two ? Number(row.t_plus_two) : 0
     }));
 
     res.json(formatted);
   } catch (err) {
-    console.error(err);
+    console.error("Error in /forecast-error:", err);
     res.status(500).json({ error: "Failed to load forecast error data" });
   }
 });
 
 /**
- * Synoptics Table Route
+ * Stations Table Route
  */
-
 router.get("/stations-table", async (req, res) => {
   try {
     const pool = getDB();
-    const { date, limit = "100", offset = "0" } = req.query;
+    const { date } = req.query;
+    const selectedDate = date || new Date().toISOString().split("T")[0];
 
     const query = `
       SELECT
@@ -213,41 +262,33 @@ router.get("/stations-table", async (req, res) => {
         COALESCE(c.level, 'N/A') AS risk_level,
         ROUND(ht.trend::numeric, 1) AS trend
       FROM model_heat_index mh
-      JOIN stations s
-        ON s.id = mh.station
+      JOIN stations s ON s.id = mh.station
       LEFT JOIN heat_index ht
         ON ht.station = mh.station
-      AND ht.date = mh.date + INTERVAL '1 day'
+       AND ht.date = mh.date + INTERVAL '1 day'
       LEFT JOIN classification c
-        ON mh.tomorrow < c.max_temp AND (c.min_temp IS NULL OR mh.tomorrow >= c.min_temp)
+        ON mh.tomorrow < c.max_temp 
+       AND (c.min_temp IS NULL OR mh.tomorrow >= c.min_temp)
       WHERE mh.date = $1
       ORDER BY s.station
     `;
 
-    const result = await pool.query(
-      query,
-      date ? [date] : [new Date().toISOString().split("T")[0]]
-    );
+    const result = await pool.query(query, [selectedDate]);
 
     const formatted = result.rows.map(row => ({
       name: row.name,
       heat_index: row.heat_index !== null ? Number(row.heat_index) : null,
       risk_level: row.risk_level,
-      trend:
-        row.trend !== null
-          ? row.trend > 0
-            ? `+${Number(row.trend).toFixed(1)}°C`
-            : `${Number(row.trend).toFixed(1)}°C`
-          : null
+      trend: row.trend !== null
+        ? `${row.trend > 0 ? '+' : ''}${Number(row.trend).toFixed(1)}°C`
+        : null
     }));
 
     res.json(formatted);
   } catch (err) {
-    console.error(err);
+    console.error("Error in /stations-table:", err);
     res.status(500).json({ error: "Failed to load stations table" });
   }
 });
-
-
 
 export default router;
