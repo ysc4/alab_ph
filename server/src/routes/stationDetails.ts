@@ -189,24 +189,35 @@ router.get('/station/:stationId/trend', async (req, res) => {
     const { date, range } = req.query;
     const pool = getDB();
 
-    let dateCondition = '';
-    
-    if (date) {
-      if (range === 'Week') {
-        // Rolling 7-day window: 6 days before + selected date
-        const selectedDate = new Date(date as string);
-        const startDate = new Date(selectedDate);
-        startDate.setDate(selectedDate.getDate() - 6);
-        dateCondition = `AND date >= '${startDate.toISOString().split('T')[0]}' AND date <= '${date}'`;
-      } else if (range === 'Month') {
-        dateCondition = `AND ${getDateRangeCondition(date as string, range as string)}`;
-      } else {
-        dateCondition = `AND date <= '${date}'`;
-      }
+    if (!date) {
+      return res.status(400).json({ error: 'Date parameter is required' });
     }
 
-    // Only apply LIMIT when no range is specified
-    const limitClause = (range === 'Week' || range === 'Month') ? '' : 'LIMIT 31';
+    const selectedDate = new Date(date as string);
+    let startDate: string;
+    let endDate: string;
+    
+    if (range === 'Week') {
+      // Rolling 7-day window: 6 days before + selected date
+      const start = new Date(selectedDate);
+      start.setDate(selectedDate.getDate() - 6);
+      startDate = start.toISOString().split('T')[0];
+      endDate = selectedDate.toISOString().split('T')[0];
+    } else if (range === 'Month') {
+      // Full month of selected date
+      startDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)
+        .toISOString().split('T')[0];
+      endDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0)
+        .toISOString().split('T')[0];
+    } else {
+      // Default: last 31 days up to and including selected date
+      const start = new Date(selectedDate);
+      start.setDate(selectedDate.getDate() - 30);
+      startDate = start.toISOString().split('T')[0];
+      endDate = selectedDate.toISOString().split('T')[0];
+    }
+
+    console.log(`[Station ${stationId} Trend] Range: ${range}, From: ${startDate}, To: ${endDate}`);
     
     const trendQuery = `
       SELECT
@@ -216,12 +227,32 @@ router.get('/station/:stationId/trend', async (req, res) => {
         ${roundNumeric('model_forecasted')} AS model_forecasted
       FROM heat_index
       WHERE station = $1
-      ${dateCondition}
+        AND date >= $2
+        AND date <= $3
       ORDER BY date ASC
-      ${limitClause}
     `;
 
-    const trendResult = await pool.query(trendQuery, [stationId]);
+    const trendResult = await pool.query(trendQuery, [stationId, startDate, endDate]);
+    
+    console.log(`[Station ${stationId} Trend] Found ${trendResult.rows.length} rows`);
+
+    // Ensure selected date is present in results
+    const selectedStr = selectedDate.toISOString().split('T')[0];
+    const hasSelectedDate = trendResult.rows.some((row: any) => row.date === selectedStr);
+    
+    if (!hasSelectedDate) {
+      console.log(`[Station ${stationId} Trend] Selected date ${selectedStr} not found in results, adding it`);
+      trendResult.rows.push({
+        date: selectedStr,
+        temp: null,
+        pagasa_forecasted: null,
+        model_forecasted: null
+      });
+      // Sort again
+      trendResult.rows.sort((a: any, b: any) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+    }
 
     const result = trendResult.rows.map(row => ({
       date: row.date,

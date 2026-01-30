@@ -105,9 +105,11 @@ const getTrendData = async (pool: any, date?: string, range?: string) => {
     endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
   }
 
+  console.log(`[getTrendData] Fetching trend data from ${startDate} to ${endDate}`);
+
   const trendQuery = `
     SELECT 
-      date, 
+      TO_CHAR(date, 'YYYY-MM-DD') as date,
       ROUND(AVG(model_forecasted)::numeric, 2) AS avg_model_forecasted, 
       ROUND(AVG(pagasa_forecasted)::numeric, 2) AS avg_pagasa_forecasted, 
       ROUND(AVG(actual)::numeric, 2) AS observed
@@ -117,8 +119,30 @@ const getTrendData = async (pool: any, date?: string, range?: string) => {
     ORDER BY date
   `;
 
-  const trendRows = (await pool.query(trendQuery, [startDate, endDate])).rows;
-  return { rows: trendRows };
+  try {
+    const result = await pool.query(trendQuery, [startDate, endDate]);
+    console.log(`[getTrendData] Found ${result.rows.length} rows`);
+    
+    // Ensure selected date is present
+    const selectedStr = d.toISOString().slice(0, 10);
+    const hasSelectedDate = result.rows.some((row: any) => row.date === selectedStr);
+    
+    if (!hasSelectedDate) {
+      console.log(`[getTrendData] Selected date ${selectedStr} not found, adding it`);
+      result.rows.push({
+        date: selectedStr,
+        avg_model_forecasted: 0,
+        avg_pagasa_forecasted: 0,
+        observed: 0
+      });
+      result.rows.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }
+    
+    return { rows: result.rows };
+  } catch (error) {
+    console.error('[getTrendData] Error:', error);
+    return { rows: [] };
+  }
 };
 
 /**
