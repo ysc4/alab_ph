@@ -20,6 +20,7 @@ const ClassificationSelector: React.FC<ClassificationSelectorProps> = ({ onSelec
         "
       >
         <option value="">All Classifications</option>
+        <option value="Below Caution">Below Caution</option>
         <option value="Caution">Caution</option>
         <option value="Extreme Caution">Extreme Caution</option>
         <option value="Danger">Danger</option>
