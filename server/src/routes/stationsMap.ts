@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { getDB } from "../db";
 import { roundNumeric, getRiskLevelCase } from "../utils/queryHelpers";
-import { connectRedis } from "../utils/redisClient";
 
 const router = Router();
 
@@ -36,45 +35,30 @@ const getStationQuery = (stationFilter: string) => `
   ORDER BY s.id, s.station;
 `;
 
-// Add caching to /stations-map
+// Fetch all stations with lat/lng and latest heat_index (or specific date)
 router.get("/stations-map", async (req, res) => {
   try {
     const pool = getDB();
     const { date } = req.query;
-    const selectedDate = date || new Date().toISOString().split("T")[0];
-    const cacheKey = `stations-map:${selectedDate}`;
-    const redis = await connectRedis();
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return res.json(JSON.parse(cached));
-    }
-    const query = `
-      SELECT
-        s.id,
-        s.station,
-        s.lat,
-        s.lon,
-        mh.tomorrow AS heat_index,
-        c.level AS risk_level
-      FROM stations s
-      LEFT JOIN model_heat_index mh ON s.id = mh.station AND mh.date = $1
-      LEFT JOIN classification c ON mh.tomorrow < c.max_temp AND (c.min_temp IS NULL OR mh.tomorrow >= c.min_temp)
-      ORDER BY s.station
-    `;
-    const result = await pool.query(query, [selectedDate]);
-    const formatted = result.rows.map(row => ({
+
+    const result = await pool.query(getStationQuery(''), [date || null]);
+
+    const stations = result.rows.map((row) => ({
       id: row.id,
-      name: row.station,
-      lat: row.lat,
-      lon: row.lon,
-      heat_index: row.heat_index !== null ? Number(row.heat_index) : null,
-      risk_level: row.risk_level || 'N/A'
+      name: row.name,
+      lat: parseFloat(row.lat ?? 0),
+      lng: parseFloat(row.lng ?? 0),
+      temp: parseFloat(row.temp ?? 0),
+      forecasted: parseFloat(row.forecasted ?? 0),
+      modelForecasted: parseFloat(row.modelforecasted ?? 0),
+      riskLevel: row.risklevel,
+      selectedDate: row.selecteddate,
     }));
-    await redis.setEx(cacheKey, 60, JSON.stringify(formatted));
-    res.json(formatted);
+
+    res.json(stations);
   } catch (err) {
-    console.error("Error in /stations-map:", err);
-    res.status(500).json({ error: "Failed to load stations map" });
+    console.error("Error fetching stations for map:", err);
+    res.status(500).json({ error: "Failed to fetch stations for map" });
   }
 });
 

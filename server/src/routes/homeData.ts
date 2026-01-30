@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { getDB } from "../db";
 import { getDateRangeCondition, roundNumeric } from "../utils/queryHelpers";
-import { connectRedis } from "../utils/redisClient";
 
 const router = Router();
 
@@ -168,13 +167,6 @@ router.get("/home-summary", async (req, res) => {
     const { date, range } = req.query;
     const dateStr = date as string | undefined;
     const rangeStr = range as string | undefined;
-    const cacheKey = `home-summary:${dateStr || "latest"}:${rangeStr || "default"}`;
-    const redis = await connectRedis();
-    // Try cache first
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return res.json(JSON.parse(cached));
-    }
 
     const dateCondition = getDateCondition(dateStr);
 
@@ -224,10 +216,7 @@ router.get("/home-summary", async (req, res) => {
     const synoptic = formatSynopticData(synopticResult.rows);
     const trend = trendResult.rows;
 
-    const response = { summary, synoptic, trend };
-    // Cache for 60 seconds
-    await redis.setEx(cacheKey, 60, JSON.stringify(response));
-    res.json(response);
+    res.json({ summary, synoptic, trend });
   } catch (err) {
     console.error("Error in /home-summary:", err);
     res.status(500).json({ error: "Failed to load home summary" });
@@ -241,19 +230,15 @@ router.get("/forecast-error", async (req, res) => {
   try {
     const pool = getDB();
     const { range, date } = req.query;
-    const cacheKey = `forecast-error:${range || "all"}:${date || "latest"}`;
-    const redis = await connectRedis();
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return res.json(JSON.parse(cached));
-    }
-
+    
     let dateCondition: string;
+    
     if (range === 'Week' && date) {
       // Rolling 7-day window: 6 days before + selected date
       const selectedDate = new Date(date as string);
       const startDate = new Date(selectedDate);
       startDate.setDate(selectedDate.getDate() - 6);
+      
       dateCondition = `date >= '${startDate.toISOString().split('T')[0]}' AND date <= '${date}'`;
     } else {
       dateCondition = getDateRangeCondition(date as string, range as string);
@@ -277,7 +262,7 @@ router.get("/forecast-error", async (req, res) => {
       t_plus_one: row.t_plus_one ? Number(row.t_plus_one) : 0,
       t_plus_two: row.t_plus_two ? Number(row.t_plus_two) : 0
     }));
-    await redis.setEx(cacheKey, 60, JSON.stringify(formatted));
+
     res.json(formatted);
   } catch (err) {
     console.error("Error in /forecast-error:", err);
@@ -293,12 +278,6 @@ router.get("/stations-table", async (req, res) => {
     const pool = getDB();
     const { date } = req.query;
     const selectedDate = date || new Date().toISOString().split("T")[0];
-    const cacheKey = `stations-table:${selectedDate}`;
-    const redis = await connectRedis();
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return res.json(JSON.parse(cached));
-    }
 
     const query = `
       SELECT
@@ -319,6 +298,7 @@ router.get("/stations-table", async (req, res) => {
     `;
 
     const result = await pool.query(query, [selectedDate]);
+
     const formatted = result.rows.map(row => ({
       name: row.name,
       heat_index: row.heat_index !== null ? Number(row.heat_index) : null,
@@ -327,7 +307,7 @@ router.get("/stations-table", async (req, res) => {
         ? `${row.trend > 0 ? '+' : ''}${Number(row.trend).toFixed(1)}°C`
         : null
     }));
-    await redis.setEx(cacheKey, 60, JSON.stringify(formatted));
+
     res.json(formatted);
   } catch (err) {
     console.error("Error in /stations-table:", err);
