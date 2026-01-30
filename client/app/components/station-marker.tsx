@@ -29,6 +29,7 @@ const getMarkerColorFromRiskLevel = (riskLevel?: string): string => {
   if (level === "danger") return "#F44336"; // Red
   if (level === "extreme caution") return "#FB923C"; // Orange
   if (level === "caution") return "#FFC107"; // Amber/Yellow
+  if (level === "below caution") return "#4CAF50"; // Green for N/A
   
   // Fallback for any unmatched values
   return "#9E9E9E"; // Gray for unknown
@@ -149,10 +150,30 @@ const StationMarker: FC<StationMarkerProps> = ({ id, lat, lng, temp, name, forec
                   return year === 2023 && month >= 3 && month <= 5;
                 };
 
+                // Helper to get color from classification
+                const getColorForValue = (val: number) => {
+                  const classification = getClassification(val);
+                  return getMarkerColorFromRiskLevel(classification);
+                };
+
                 const heatSections = [
-                  ...(shouldShowPagasa() ? [{ label: "PAGASA-Forecasted Heat Index", value: forecasted || 0, color: "#1666BA" }] : []),
-                  { label: "Actual Heat Index", value: temp || 0, color: markerColor },
-                  { label: "Model-Forecasted Heat Index", value: modelForecasted || 0, color: "#1666BA" },
+                  ...(shouldShowPagasa()
+                    ? [{
+                        label: "PAGASA-Forecasted Heat Index",
+                        value: forecasted || 0,
+                        color: getColorForValue(forecasted || 0)
+                      }]
+                    : []),
+                  {
+                    label: "Actual Heat Index",
+                    value: temp || 0,
+                    color: markerColor
+                  },
+                  {
+                    label: "Model-Forecasted Heat Index",
+                    value: modelForecasted || 0,
+                    color: getColorForValue(modelForecasted || 0)
+                  },
                 ];
 
                 return heatSections.map((section, idx) => (
