@@ -24,7 +24,7 @@ export function getTrendSeries(
 
   // Backend already filters for Week (7 days) or Month
   // We just need to add day numbers and zero out future dates
-  return trendData.map((d) => {
+  const result = trendData.map((d) => {
     const dDate = new Date(d.date);
     dDate.setHours(0, 0, 0, 0);
     
@@ -46,6 +46,20 @@ export function getTrendSeries(
     
     return entry;
   });
+
+  // Special condition: Exclude March 1 for all March dates
+  const selectedMonth = selected.getMonth(); // 0-indexed: March = 2
+  const selectedYear = selected.getFullYear();
+  
+  if (selectedMonth === 2) { // March
+    return result.filter(item => {
+      const itemDate = new Date(item.date);
+      // Exclude March 1 of the same year
+      return !(itemDate.getDate() === 1 && itemDate.getMonth() === 2 && itemDate.getFullYear() === selectedYear);
+    });
+  }
+
+  return result;
 }
 
 /**
@@ -62,7 +76,7 @@ export function getForecastErrorSeries<T extends { day: string | number; date?: 
   selected.setHours(0, 0, 0, 0);
 
   // Backend already filters the data, we just need to zero out future dates
-  return errorData.map((d) => {
+  const result = errorData.map((d) => {
     let dDate: Date | null = null;
     
     // Try to use date field if available
@@ -94,6 +108,32 @@ export function getForecastErrorSeries<T extends { day: string | number; date?: 
     
     return d;
   });
+
+  // Special condition: Exclude March 1 for all March dates
+  const selectedMonth = selected.getMonth(); // 0-indexed: March = 2
+  const selectedYear = selected.getFullYear();
+  
+  if (selectedMonth === 2) { // March
+    return result.filter(item => {
+      let itemDate: Date | null = null;
+      
+      if (item.date && typeof item.date === 'string') {
+        itemDate = new Date(item.date);
+      } else if (typeof item.day === 'number') {
+        itemDate = new Date(selected);
+        itemDate.setDate(item.day);
+      }
+      
+      if (itemDate) {
+        // Exclude March 1 of the same year
+        return !(itemDate.getDate() === 1 && itemDate.getMonth() === 2 && itemDate.getFullYear() === selectedYear);
+      }
+      
+      return true;
+    });
+  }
+
+  return result;
 }
 
 export const formatDate = (dateString: string | Date | null | undefined): string => {
