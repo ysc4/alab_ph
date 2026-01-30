@@ -9,25 +9,25 @@ interface DateSelectorProps {
 const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onSelect?.(e.target.value);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Prevent typing by blocking all keyboard input except Tab
-    if (e.key !== "Tab") {
       e.preventDefault();
-    }
-  };
+    };
 
   return (
-    <div className="relative w-50">
+    <div
+      className="relative w-50 select-none"
+      onClick={() => inputRef.current && inputRef.current.showPicker && inputRef.current.showPicker()}
+      style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
+    >
       <input
         ref={inputRef}
         type="date"
         value={value || ""}
         onChange={handleDateChange}
-        onKeyDown={handleKeyDown}
         min="2023-03-03"
         max="2023-05-31"
         className="
@@ -38,7 +38,10 @@ const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
           appearance-none
           focus:outline-none focus:border-text-primary
           [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer
+          select-none
         "
+        style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
+        onKeyDown={handleKeyDown}
       />
       <Calendar
         className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-text-primary w-5 h-5"
