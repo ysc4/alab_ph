@@ -3,7 +3,6 @@ import React, { ReactNode } from "react";
 import "./globals.css";
 import { Inter } from "next/font/google";
 
-// Load Inter with all weights
 const inter = Inter({
   weight: ["100","200","300","400","500","600","700","800","900"],
   subsets: ["latin"],
@@ -22,7 +21,9 @@ export default function RootLayout({
 }): React.ReactElement {
   return (
     <html lang="en" className={inter.variable}>
-      <body>{children}</body>
+      <body className="relative">
+        {children}
+      </body>
     </html>
   );
 }

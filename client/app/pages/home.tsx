@@ -6,6 +6,8 @@ import Toggle from "../components/toggle";
 import ClassificationSelector from "../components/classification-selector";
 import { formatDate, getTrendSeries, getForecastErrorSeries } from "../utils/dateFormatter";
 import { API_BASE_URL } from "../utils/api";
+import { useLoading } from "../context/LoadingContext";
+
 
 // Types
 type Station = {
@@ -62,6 +64,8 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
   const [forecastErrorPeriod, setForecastErrorPeriod] = useState<"Week" | "Month">("Week");
   const [classificationFilter, setClassificationFilter] = useState<string>("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const { startLoading, stopLoading } = useLoading();
+
   
   // State for API data
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
@@ -71,10 +75,18 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
   const [historicalHIData, setHistoricalHIData] = useState<HistoricalHIData[]>([]);
 
   // Refresh function to refetch all data
-  const refreshData = () => {
-    console.log('Refreshing all data...');
+  const refreshData = async (): Promise<void> => {
+  try {
+    startLoading();
+    console.log("Refreshing all data...");
     setRefreshTrigger(prev => prev + 1);
-  };
+  } finally {
+    setTimeout(() => {
+      stopLoading();
+    }, 600);
+  }
+};
+
 
   // Download function that uses selectedDate from props
   const downloadHomeData = async () => {

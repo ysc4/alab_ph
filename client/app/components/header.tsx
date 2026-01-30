@@ -1,8 +1,9 @@
-
+'use client';
 import React, { useRef, useState } from "react";
 import { Download, CloudSun } from "lucide-react";
 import DateSelector from "./date-selector";
 import StationSelector from "./station-selector";
+import { useLoading } from "../context/LoadingContext";
 
 // TooltipButton component for floating tooltip at cursor
 interface TooltipButtonProps {
@@ -91,40 +92,83 @@ interface HeaderProps {
   onGenerateData?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ title, activePage, selectedDate, selectedStationId, onStationSelect, onDateSelect, onDownload, onGenerateData }) => {
+const Header: React.FC<HeaderProps> = ({
+  title,
+  activePage,
+  selectedDate,
+  selectedStationId,
+  onStationSelect,
+  onDateSelect,
+  onDownload,
+  onGenerateData
+}) => {
+  const { startLoading, stopLoading } = useLoading();
+
+  const handleGenerateForecast = async () => {
+    if (!onGenerateData) return;
+
+    try {
+      startLoading();          
+      await onGenerateData();   
+    } catch (error) {
+      console.error("Forecast generation failed:", error);
+    } finally {
+      stopLoading();           
+    }
+  };
+
   return (
     <header className="flex items-center justify-between pt-8">
       <h1 className="text-[36px] font-extrabold text-text-primary">
-        <span style={{ fontWeight: 'bolder' }}>{title}</span>
+        <span style={{ fontWeight: "bolder" }}>{title}</span>
       </h1>
+
       {activePage === "Home" && (
         <div className="flex gap-4">
           <TooltipButton
-            icon={<CloudSun className="w-5 h-5 icon-forecast" style={{ color: 'inherit', transition: 'color 0.2s' }} />}
-            onClick={onGenerateData}
+            icon={
+              <CloudSun
+                className="w-5 h-5 icon-forecast"
+                style={{ color: "inherit", transition: "color 0.2s" }}
+              />
+            }
+            onClick={handleGenerateForecast}
             label="Forecast Heat Index"
           />
+
           <TooltipButton
-            icon={<Download className="w-5 h-5 icon-download" style={{ color: 'inherit', transition: 'color 0.2s' }} />}
+            icon={
+              <Download
+                className="w-5 h-5 icon-download"
+                style={{ color: "inherit", transition: "color 0.2s" }}
+              />
+            }
             onClick={onDownload}
             label="Download Forecast Report"
           />
+
           <DateSelector value={selectedDate} onSelect={onDateSelect} />
         </div>
       )}
+
       {activePage === "Map" && (
         <div className="flex gap-4">
           <DateSelector value={selectedDate} onSelect={onDateSelect} />
         </div>
-      )}      
+      )}
+
       {activePage === "Station" && (
         <div className="flex gap-4">
           <DateSelector value={selectedDate} onSelect={onDateSelect} />
-          <StationSelector selectedStationId={selectedStationId} onSelect={onStationSelect} />
+          <StationSelector
+            selectedStationId={selectedStationId}
+            onSelect={onStationSelect}
+          />
         </div>
       )}
     </header>
   );
 };
+
 
 export default Header;
