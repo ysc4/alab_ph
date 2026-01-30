@@ -37,7 +37,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
           text-base font-medium text-text-primary
           appearance-none
           focus:outline-none focus:border-text-primary
-          [&::-webkit-calendar-picker-indicator]:cursor-pointer
+          [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer
         "
       />
       <Calendar
