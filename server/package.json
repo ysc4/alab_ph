@@ -15,7 +15,8 @@
     "morgan": "^1.10.1",
     "numpy": "^0.0.1",
     "pandas": "^0.0.3",
-    "pg": "^8.17.2"
+    "pg": "^8.17.2",
+    "redis": "^5.10.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
