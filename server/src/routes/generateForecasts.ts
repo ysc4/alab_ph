@@ -94,9 +94,9 @@ router.post("/generate-forecasts", async (req, res) => {
 
     for (const forecast of forecasts) {
       // Adapt to output keys from forecast_model.py
-      // forecast = { station_id, t1_forecast, t2_forecast }
+      // forecast = { station, t1_forecast, t2_forecast }
       const {
-        station_id,
+        station,
         t1_forecast: tomorrowTemp,
         t2_forecast: dayAfterTomorrowTemp
       } = forecast;
@@ -104,7 +104,7 @@ router.post("/generate-forecasts", async (req, res) => {
       try {
         const existingRecord = await pool.query(
           `SELECT id FROM model_heat_index WHERE station = $1 AND date = $2`,
-          [station_id, date]
+          [station, date]
         );
 
         if (existingRecord.rows.length > 0) {
@@ -113,7 +113,7 @@ router.post("/generate-forecasts", async (req, res) => {
              SET tomorrow = $1,
                  day_after_tomorrow = $2
              WHERE station = $3 AND date = $4`,
-            [tomorrowTemp, dayAfterTomorrowTemp, station_id, date]
+            [tomorrowTemp, dayAfterTomorrowTemp, station, date]
           );
           updateCount++;
         } else {
@@ -121,12 +121,12 @@ router.post("/generate-forecasts", async (req, res) => {
             `INSERT INTO model_heat_index
              (station, date, tomorrow, day_after_tomorrow)
              VALUES ($1, $2, $3, $4)`,
-            [station_id, date, tomorrowTemp, dayAfterTomorrowTemp]
+            [station, date, tomorrowTemp, dayAfterTomorrowTemp]
           );
           insertCount++;
         }
       } catch (dbError) {
-        console.error(`Database error for station ${station_id}:`, dbError);
+        console.error(`Database error for station ${station}:`, dbError);
         throw dbError;
       }
     }
