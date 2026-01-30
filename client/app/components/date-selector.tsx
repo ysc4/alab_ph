@@ -28,7 +28,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({ onSelect, value }) => {
         value={value || ""}
         onChange={handleDateChange}
         onKeyDown={handleKeyDown}
-        min="2023-03-01"
+        min="2023-03-03"
         max="2023-05-31"
         className="
           w-full cursor-pointer
