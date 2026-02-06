@@ -4,11 +4,17 @@ import os
 import pandas as pd
 import numpy as np
 import xgboost as xgb
+import psycopg2
+from dotenv import load_dotenv
+
+# Load environment variables
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(BASE_DIR, '..', '.env'))
 
 # --- Configuration ---
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "xgb_hi_forecast_model.json")
-DATA_PATH = os.path.join(BASE_DIR, "services", "df_test_final.csv")
+DATABASE_URL = os.getenv('DATABASE_URL')
+LOCAL_CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "df_test_final.csv")
 
 # The exact 67 features your model was trained on
 TRAINING_FEATURES = [
@@ -46,18 +52,90 @@ def main():
         # Get the underlying Booster object
         booster = model.get_booster()
         
-        # 3. Load Data
-        df = pd.read_csv(DATA_PATH)
+        # 3. Connect to Database and Load Data
+        conn = psycopg2.connect(DATABASE_URL)
         
-        # 4. Filter data for the specific date
-        mask = df['Date'] == selected_date
-        df_selected = df[mask].copy()
+        # Query data for the specific date (lowercase column name in PostgreSQL)
+        query = """
+            SELECT * FROM df_test_final 
+            WHERE date = %s
+        """
+        df_selected = pd.read_sql_query(query, conn, params=(selected_date,))
+        conn.close()
+
+        # PostgreSQL converts column names to lowercase, but our model expects mixed case
+        # Create a mapping from lowercase to the original case
+        column_map = {col.lower(): col for col in TRAINING_FEATURES}
+        column_map.update({
+            'date': 'Date',
+            'year': 'YEAR', 
+            'month': 'MONTH',
+            'day': 'DAY',
+            'tmax': 'TMAX',
+            'tmin': 'TMIN',
+            'rh': 'RH',
+            'wind_speed': 'WIND_SPEED',
+            'wind_direction': 'WIND_DIRECTION',
+            'hi': 'HI',
+            'albedo_linear': 'Albedo_linear',
+            'albedo_spline': 'Albedo_spline',
+            'skin_temperature_min_c': 'skin_temperature_min_C',
+            'skin_temperature_max_c': 'skin_temperature_max_C',
+            'ndbai_linear': 'NDBaI_linear',
+            'ndbai_spline': 'NDBaI_spline',
+            'ndbi_linear': 'NDBI_linear',
+            'ndbi_spline': 'NDBI_spline',
+            'ndvi_original': 'NDVI_original',
+            'ndwi_linear': 'NDWI_linear',
+            'ndwi_spline': 'NDWI_spline',
+            'latitude': 'Latitude',
+            'longitude': 'Longitude',
+            'elevation': 'Elevation',
+            'station': 'Station',
+            'temperature_at_rh': 'Temperature_at_RH',
+            'max_hi': 'Max_HI',
+            'is_dry_season': 'is_dry_season',
+            'is_wet_season': 'is_wet_season',
+            'is_cool_dry_season': 'is_cool_dry_season',
+            'is_hot_dry_season': 'is_hot_dry_season',
+            'u_wind_component': 'U_wind_component',
+            'v_wind_component': 'V_wind_component',
+            'temp_range': 'Temp_Range',
+            'temp_mean': 'Temp_Mean',
+            'month_sin': 'Month_sin',
+            'month_cos': 'Month_cos',
+            'day_sin': 'Day_sin',
+            'day_cos': 'Day_cos',
+            'day_of_year': 'Day_of_Year',
+            'day_of_year_sin': 'Day_of_Year_sin',
+            'day_of_year_cos': 'Day_of_Year_cos',
+            'is_weekend': 'is_weekend',
+            't^2': 'T^2',
+            'rh^2': 'RH^2',
+            'txrh': 'TxRH',
+            't^2xrh': 'T^2xRH',
+            'txrh^2': 'TxRH^2',
+            't^2xrh^2': 'T^2xRH^2',
+            'tmax_x_wind': 'TMAX_x_WIND',
+            'temprange_x_rh': 'TempRange_x_RH',
+        })
         
+        used_local_csv = False
+        if df_selected.empty:
+            # Fallback to local CSV if the database query returns no rows
+            df_local = pd.read_csv(LOCAL_CSV_PATH)
+            date_col = 'Date' if 'Date' in df_local.columns else 'date'
+            df_selected = df_local[df_local[date_col] == selected_date].copy()
+            used_local_csv = True
+
+        # Rename columns to match the expected case
+        df_selected.columns = [column_map.get(col.lower(), col) for col in df_selected.columns]
+
         if df_selected.empty:
             print(json.dumps({"error": f"No data found for date {selected_date}"}))
             sys.exit(1)
 
-        # 5. Extract features and create DMatrix
+        # 4. Extract features and create DMatrix
         X_input = df_selected[TRAINING_FEATURES].copy()
         
         # Create DMatrix with explicit feature names
@@ -69,7 +147,7 @@ def main():
         # Predict using Booster
         predictions = booster.predict(dmatrix)
         
-        # 6. Format Results for Dashboard
+        # 5. Format Results for Dashboard
         forecasts = []
         
         # Handle predictions shape
@@ -93,6 +171,9 @@ def main():
                     "t2_forecast": round(float(pred_row[0]), 2)
                 })
         
+        # Log flag for fallback usage without altering the main JSON output
+        print(f"used_local_csv={str(used_local_csv).lower()}", file=sys.stderr)
+
         # Standard output for the dashboard to capture
         print(json.dumps(forecasts))
 
