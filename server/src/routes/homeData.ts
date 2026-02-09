@@ -14,6 +14,7 @@ const COLOR_MAP: Record<string, string> = {
 };
 
 const SORT_ORDER: Record<string, number> = {
+  "Below Caution": 0,
   Caution: 1,
   "Extreme Caution": 2,
   Danger: 3,

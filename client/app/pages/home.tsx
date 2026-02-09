@@ -13,7 +13,7 @@ import { useLoading } from "../context/LoadingContext";
 type Station = {
   name: string;
   heat_index: number;
-  risk_level: "Caution" | "Extreme Caution" | "Danger" | "Extreme Danger";
+  risk_level: "Below Caution" | "Caution" | "Extreme Caution" | "Danger" | "Extreme Danger";
   trend?: string;
 };
 
@@ -440,6 +440,9 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
                           badgeClass += ' bg-[#F5F5F5] text-[#616161]'; // Gray for no data
                         } else {
                           switch (station.risk_level) {
+                            case 'Below Caution':
+                              badgeClass += ' bg-[#E8F5E9] text-[#4CAF50]';
+                              break;
                             case 'Caution':
                               badgeClass += ' bg-[#FFFDE7] text-[#FFC107]';
                               break;
