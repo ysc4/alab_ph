@@ -282,7 +282,7 @@ router.get("/stations-table", async (req, res) => {
     const query = `
       SELECT
         s.station AS name,
-        ROUND(mh.tomorrow::numeric, 1) AS heat_index,
+        ROUND(ht.actual::numeric, 1) AS heat_index,
         COALESCE(c.level, 'N/A') AS risk_level,
         ROUND(ht.trend::numeric, 1) AS trend
       FROM model_heat_index mh
