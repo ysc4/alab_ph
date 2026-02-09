@@ -6,6 +6,7 @@ const router = Router();
 
 // Constants
 const COLOR_MAP: Record<string, string> = {
+  "Below Caution": "#4CAF50",
   Caution: "#FFD700",
   "Extreme Caution": "#FFA500",
   Danger: "#FF4500",
@@ -200,7 +201,7 @@ router.get("/home-summary", async (req, res) => {
           JOIN stations s ON s.id = mh.station
           LEFT JOIN classification c
             ON mh.tomorrow >= c.min_temp
-           AND mh.tomorrow < CAST(c.max_temp AS NUMERIC)
+           AND mh.tomorrow <= c.max_temp
           WHERE mh.date = $1
           GROUP BY c.level
         `,
@@ -291,8 +292,8 @@ router.get("/stations-table", async (req, res) => {
         ON ht.station = mh.station
        AND ht.date = mh.date + INTERVAL '1 day'
       LEFT JOIN classification c
-        ON mh.tomorrow < c.max_temp 
-       AND (c.min_temp IS NULL OR mh.tomorrow >= c.min_temp)
+        ON ht.actual <= c.max_temp 
+       AND (c.min_temp IS NULL OR ht.actual >= c.min_temp)
       WHERE mh.date = $1
       ORDER BY s.station
     `;
