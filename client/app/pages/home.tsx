@@ -17,11 +17,6 @@ type Station = {
   trend?: string;
 };
 
-interface AverageHI {
-  day: string;
-  observed: number;
-}
-
 interface ForecastError {
   day: number;
   t_plus_one: number;
