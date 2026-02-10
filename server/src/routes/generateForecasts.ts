@@ -17,11 +17,6 @@ try {
   console.warn("python3 not found in PATH, falling back to 'python3'");
 }
 
-/**
- * Generate forecasts using the XGBoost model and store in model_heat_index table
- * Only forecasts tomorrow (T+1) and day after tomorrow (T+2)
- * Absolute errors are computed directly in the database
- */
 router.post("/generate-forecasts", async (req, res) => {
   try {
     const pool = getDB();
@@ -93,8 +88,6 @@ router.post("/generate-forecasts", async (req, res) => {
     await pool.query("SELECT 1");
 
     for (const forecast of forecasts) {
-      // Adapt to output keys from forecast_model.py
-      // forecast = { station, t1_forecast, t2_forecast }
       const {
         station,
         t1_forecast: tomorrowTemp,
