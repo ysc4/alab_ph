@@ -56,8 +56,8 @@ router.get('/station/:stationId/summary', async (req, res) => {
       pool.query(
         `SELECT
           date,
-          ROUND(tomorrow::numeric, 1) AS tomorrow,
-          ROUND(day_after_tomorrow::numeric, 1) AS day_after_tomorrow
+          ROUND(tomorrow::numeric, 0) AS tomorrow,
+          ROUND(day_after_tomorrow::numeric, 0) AS day_after_tomorrow
         FROM model_heat_index
         WHERE station = $1
         ${date ? 'AND date = $2' : ''}

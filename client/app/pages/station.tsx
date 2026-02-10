@@ -311,7 +311,7 @@ const Station: React.FC<{
               {formatDate(forecast.date)}
             </div>
             <div className="text-5xl font-bold text-primary mt-3">
-              {forecast.temp ? `${Number(forecast.temp).toFixed(1)}°C` : "N/A"}
+              {forecast.temp ? `${Number(forecast.temp)}°C` : "N/A"}
             </div>
           </div>
         ))}
