@@ -13,9 +13,9 @@ const getStationQuery = (stationFilter: string) => `
     s.station AS name,
     s.latitude AS lat,
     s.longitude AS lng,
-    ${roundNumeric('hi.actual', 0)} AS temp,
-    ${roundNumeric('hi.pagasa_forecasted', 0)} AS forecasted,
-    ${roundNumeric('hi.model_forecasted', 0)} AS modelForecasted,
+    ROUND(hi.actual::numeric, 1) AS temp,
+    ROUND(hi.pagasa_forecasted::numeric, 0) AS forecasted,
+    ROUND(hi.model_forecasted::numeric, 0) AS modelForecasted,
     ${getRiskLevelCase('hi.model_forecasted')} AS riskLevel,
     COALESCE(hi.date::text, $1::text) AS selectedDate
   FROM stations s
