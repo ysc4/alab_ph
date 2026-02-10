@@ -277,21 +277,32 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
     ? stations.filter((station) => station.risk_level.toLowerCase() === classificationFilter.toLowerCase().replace("-", " "))
     : stations;
 
+  const getHeatIndexColor = (value?: number) => {
+    if (value == null || Number.isNaN(value)) return "#1E40AF";
+    if (value > 42) return "#B71C1C";
+    if (value >= 33) return "#FB923C";
+    if (value >= 27) return "#FFC107";
+    return "#4CAF50";
+  };
+
   const cards = [
     {
       title: "Highest Forecasted Heat Index",
       value: summaryData ? `${summaryData.max}°C` : "--",
       subtext: summaryData?.max_station || "Across all stations",
+      valueColor: getHeatIndexColor(summaryData?.max),
     },
     {
       title: "Lowest Forecasted Heat Index",
       value: summaryData ? `${summaryData.min}°C` : "--",
       subtext: summaryData?.min_station || "Across all stations",
+      valueColor: getHeatIndexColor(summaryData?.min),
     },
     {
       title: "Average Forecasted Heat Index",
       value: summaryData ? `${summaryData.avg}°C` : "--",
       subtext: "Luzon-wide average",
+      valueColor: getHeatIndexColor(summaryData?.avg),
     },
     {
       title: "Number of Stations in Danger-Extreme Danger",
@@ -326,7 +337,10 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
           {card.title}
         </h2>
 
-        <h1 className="text-[32px] md:text-[52px] font-bold leading-none mt-2 mb-4 text-primary">
+        <h1
+          className="text-[32px] md:text-[52px] font-bold leading-none mt-2 mb-4 text-primary"
+          style={card.valueColor ? { color: card.valueColor } : undefined}
+        >
           {card.value}
         </h1>
 
