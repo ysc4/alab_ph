@@ -76,16 +76,13 @@ const calculateSummary = (stations: any[]) => {
     max_station: maxStation?.station_name || "",
     min: Number(min.toFixed(2)),
     min_station: minStation?.station_name || "",
-    avg: Number(avg.toFixed(2)),
+    avg: Number(avg.toFixed(0)),
     danger_count,
     fastest_increasing_station: fastestStation.station_name,
     fastest_increasing_trend: Number(Number(fastestStation.trend).toFixed(2)),
   };
 };
 
-/**
- * Helper: Get trend data with correct date range
- */
 const getTrendData = async (pool: any, date?: string, range?: string) => {
   if (!date) {
     return { rows: [] };
@@ -147,9 +144,6 @@ const getTrendData = async (pool: any, date?: string, range?: string) => {
   }
 };
 
-/**
- * Format synoptic data with colors and sorting
- */
 const formatSynopticData = (rows: any[]) => {
   return rows
     .map(row => ({
@@ -160,9 +154,6 @@ const formatSynopticData = (rows: any[]) => {
     .sort((a, b) => (SORT_ORDER[a.name] || 999) - (SORT_ORDER[b.name] || 999));
 };
 
-/**
- * Home Summary Route
- */
 router.get("/home-summary", async (req, res) => {
   try {
     const pool = getDB();
@@ -272,9 +263,6 @@ router.get("/forecast-error", async (req, res) => {
   }
 });
 
-/**
- * Stations Table Route
- */
 router.get("/stations-table", async (req, res) => {
   try {
     const pool = getDB();
