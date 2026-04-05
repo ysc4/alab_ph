@@ -343,7 +343,7 @@ const Station: React.FC<{
                   <Line
                     type="monotone"
                     dataKey="temp"
-                    stroke="#1666BA"
+                    stroke="#3A86FF"
                     name="Actual Heat Index"
                     connectNulls
                   />
