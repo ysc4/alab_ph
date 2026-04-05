@@ -343,21 +343,21 @@ const Station: React.FC<{
                   <Line
                     type="monotone"
                     dataKey="temp"
-                    stroke="#1D548F"
+                    stroke="#6A4C93"
                     name="Actual Heat Index"
                     connectNulls
                   />
                   <Line
                     type="monotone"
                     dataKey="pagasa_forecasted"
-                    stroke="#2FA4FF"
+                    stroke="#B565A7"
                     name="PAGASA-Forecasted Heat Index"
                     connectNulls
                   />
                   <Line
                     type="monotone"
                     dataKey="model_forecasted"
-                    stroke="#7AB3EF"
+                    stroke="#9A8C98"
                     name="Model-Forecasted Heat Index"
                     connectNulls
                   />
