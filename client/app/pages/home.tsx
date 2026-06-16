@@ -374,8 +374,8 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
                 <Tooltip />
                 <Legend />
                 <Line type="monotone" dataKey="observed" stroke="#2FA4FF" name="Observed" />
-                <Line type="monotone" dataKey="avg_model_forecasted" stroke="#9467BD" name="Average Model Forecasted" dot={false} isAnimationActive={false} />
-                <Line type="monotone" dataKey="avg_pagasa_forecasted" stroke="#17BECF" name="Average PAGASA Forecasted" dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey="avg_model_forecasted" stroke="#9467BD" name="Average Model Forecasted" isAnimationActive={false} />
+                <Line type="monotone" dataKey="avg_pagasa_forecasted" stroke="#17BECF" name="Average PAGASA Forecasted" isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
