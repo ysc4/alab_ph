@@ -383,9 +383,9 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="observed" stroke="#2FA4FF" name="Observed" />
-                <Line type="monotone" dataKey="avg_model_forecasted" stroke="#9467BD" name="Average Model Forecasted" isAnimationActive={false} />
-                <Line type="monotone" dataKey="avg_pagasa_forecasted" stroke="#17BECF" name="Average PAGASA Forecasted" isAnimationActive={false} />
+                <Line type="monotone" dataKey="observed" stroke="#1D4ED8" name="Observed" />
+                <Line type="monotone" dataKey="avg_model_forecasted" stroke="#6D28D9" name="Average Model Forecasted" isAnimationActive={false} />
+                <Line type="monotone" dataKey="avg_pagasa_forecasted" stroke="#0E7490" name="Average PAGASA Forecasted" isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -410,8 +410,8 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="t_plus_one" stroke="#2FA4FF" name="1-Day Ahead Error" />
-                <Line type="monotone" dataKey="t_plus_two" stroke="#9467BD" name="2-Day Ahead Error" />
+                <Line type="monotone" dataKey="t_plus_one" stroke="#1D4ED8" name="1-Day Ahead Error" />
+                <Line type="monotone" dataKey="t_plus_two" stroke="#6D28D9" name="2-Day Ahead Error" />
               </LineChart>
             </ResponsiveContainer>
           ) : (
