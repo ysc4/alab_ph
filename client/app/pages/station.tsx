@@ -338,7 +338,7 @@ const Station: React.FC<{
               {formatDate(forecast.date)}
             </div>
             <div
-              className="font-bold text-primary mt-3"
+              className="font-bold text-primary mt-1 leading-none"
               style={{ fontSize: "clamp(2.5rem, 4vw + 0.5rem, 3.5rem)" }}
             >
               {forecast.temp ? `${Number(forecast.temp)}°C` : "N/A"}
