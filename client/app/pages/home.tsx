@@ -383,9 +383,9 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="observed" stroke="#2563EB" strokeWidth={3} name="Observed" />
-                <Line type="monotone" dataKey="avg_model_forecasted" stroke="#7C3AED" strokeWidth={3} name="Average Model Forecasted" isAnimationActive={false} />
-                <Line type="monotone" dataKey="avg_pagasa_forecasted" stroke="#0891B2" strokeWidth={3} name="Average PAGASA Forecasted" isAnimationActive={false} />
+                <Line type="monotone" dataKey="observed" stroke="#2563EB" strokeWidth={2} name="Observed" />
+                <Line type="monotone" dataKey="avg_model_forecasted" stroke="#7C3AED" strokeWidth={2} name="Average Model Forecasted" isAnimationActive={false} />
+                <Line type="monotone" dataKey="avg_pagasa_forecasted" stroke="#0891B2" strokeWidth={2} name="Average PAGASA Forecasted" isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
