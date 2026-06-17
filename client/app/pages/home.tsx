@@ -333,18 +333,28 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
         key={card.title}
         className="bg-white rounded-xl shadow-sm p-4 md:p-5 flex flex-col items-center text-center"
       >
-        <h2 className="text-base font-medium text-text-primary mb-0.5 leading-tight">
+        <h2
+          className="font-medium text-text-primary mb-0.5 leading-tight"
+          style={{ fontSize: "clamp(1rem, 0.9vw + 0.8rem, 1.125rem)" }}
+        >
           {card.title}
         </h2>
 
         <h1
-          className="text-[32px] md:text-[52px] font-bold leading-none mt-2 mb-4 text-primary"
-          style={card.valueColor ? { color: card.valueColor } : undefined}
+          className="font-bold leading-none mt-2 mb-4 text-primary"
+          style={{
+            fontSize: "clamp(2.125rem, 4vw + 0.25rem, 3.5rem)",
+            lineHeight: 1,
+            ...(card.valueColor ? { color: card.valueColor } : {}),
+          }}
         >
           {card.value}
         </h1>
 
-        <p className="text-sm italic text-text-muted">
+        <p
+          className="italic text-text-muted"
+          style={{ fontSize: "clamp(0.9375rem, 0.65vw + 0.75rem, 1rem)" }}
+        >
           {card.subtext}
         </p>
       </div>

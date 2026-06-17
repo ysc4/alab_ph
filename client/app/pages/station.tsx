@@ -249,20 +249,36 @@ const Station: React.FC<{
           }].map((item) => (
           <div
             key={item.title}
-            className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center text-center"
+            className="bg-white rounded-xl shadow-sm p-4 md:p-5 flex flex-col items-center text-center"
           >
-            <h2 className="text-lg font-semibold text-text-primary">
+            <h2
+              className="font-semibold text-text-primary"
+              style={{ fontSize: "clamp(1.125rem, 0.5vw + 0.95rem, 1.25rem)" }}
+            >
               {item.title}
             </h2>
-            <h1 className="text-[56px] font-bold leading-none mt-2 mb-4 text-primary">
+            <h1
+              className="font-bold leading-none mt-2 mb-3 text-primary"
+              style={{ fontSize: "clamp(3.25rem, 5vw + 0.5rem, 4rem)" }}
+            >
               {item.value}
             </h1>
-            <p className="text-sm italic text-text-muted">{item.sub}</p>
+            <p
+              className="italic text-text-muted"
+              style={{ fontSize: "clamp(0.9375rem, 0.4vw + 0.8rem, 1rem)" }}
+            >
+              {item.sub}
+            </p>
           </div>
         ))}
 
-        <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col">
-          <h2 className="text-[16px] font-semibold mb-1 text-center">Model Confidence</h2>
+        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 flex flex-col">
+          <h2
+            className="font-semibold mb-1 text-center"
+            style={{ fontSize: "clamp(1rem, 0.45vw + 0.9rem, 1.125rem)" }}
+          >
+            Model Confidence
+          </h2>
           <div className="grid grid-cols-2 gap-8">
             {[
               { 
@@ -283,8 +299,13 @@ const Station: React.FC<{
               },
             ].map((forecast) => (
               <div key={forecast.label}>
-                <h3 className="font-semibold text-text-primary mb-0.5 text-center">{forecast.label}</h3>
-                <div className="grid grid-cols-2 gap-y-0.5 text-md">
+                <h3
+                  className="font-semibold text-text-primary mb-0.5 text-center"
+                  style={{ fontSize: "clamp(1rem, 0.4vw + 0.9rem, 1.125rem)" }}
+                >
+                  {forecast.label}
+                </h3>
+                <div className="grid grid-cols-2 gap-y-0.5" style={{ fontSize: "clamp(0.9375rem, 0.35vw + 0.82rem, 1rem)" }}>
                   {forecast.metrics.map((metric) => (
                     <React.Fragment key={metric.label}>
                       <div className="italic text-text-primary">{metric.label}</div>
@@ -302,21 +323,30 @@ const Station: React.FC<{
         {safeForecasts.map((forecast, index) => (
           <div
             key={index}
-            className="bg-white rounded-xl shadow-sm p-6 text-center"
+            className="bg-white rounded-xl shadow-sm p-4 md:p-5 text-center"
           >
-            <div className="text-xl font-semibold">
+            <div
+              className="font-semibold"
+              style={{ fontSize: "clamp(1.125rem, 0.5vw + 1rem, 1.25rem)" }}
+            >
               {index === 0 ? "Tomorrow" : "Day After Tomorrow"}
             </div>
-            <div className="text-sm text-gray-500">
+            <div
+              className="text-gray-500"
+              style={{ fontSize: "clamp(0.875rem, 0.35vw + 0.78rem, 0.95rem)" }}
+            >
               {formatDate(forecast.date)}
             </div>
-            <div className="text-5xl font-bold text-primary mt-3">
+            <div
+              className="font-bold text-primary mt-3"
+              style={{ fontSize: "clamp(2.5rem, 4vw + 0.5rem, 3.5rem)" }}
+            >
               {forecast.temp ? `${Number(forecast.temp)}°C` : "N/A"}
             </div>
           </div>
         ))}
 
-        <div className="bg-white rounded-xl shadow-sm p-6 xl:col-span-2 xl:row-span-2 flex flex-col">
+        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 xl:col-span-2 xl:row-span-2 flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-2xl font-extrabold">
              Heat Index Trend
@@ -371,7 +401,7 @@ const Station: React.FC<{
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6 xl:col-span-2">
+        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 xl:col-span-2">
           <div className="flex justify-between mb-3">
             <h1 className="text-2xl font-extrabold">Absolute Forecast Error</h1>
             <Toggle options={["Week", "Month"]} onSelect={(selected) => setForecastErrorPeriod(selected as "Week" | "Month")} />
@@ -462,7 +492,7 @@ const Station: React.FC<{
         ].map((section) => (
           <div
             key={section.title}
-            className="bg-white rounded-xl shadow-sm p-6 xl:col-span-2 xl:row-span-2"
+            className="bg-white rounded-xl shadow-sm p-4 md:p-5 xl:col-span-2 xl:row-span-2"
           >
             <h1 className="text-2xl font-extrabold mb-1">
               {section.title}
@@ -470,13 +500,13 @@ const Station: React.FC<{
 
             <div className="divide-y border-y">
               {section.items.map((item) => (
-                <div key={item.title} className="flex gap-4 py-4">
+                <div key={item.title} className="flex gap-4 py-3">
                   <item.icon className="w-8 h-8 text-primary" />
                   <div>
-                    <strong className="block text-base">
+                    <strong className="block text-[1.05rem]">
                       {item.title}
                     </strong>
-                    <p className="text-xs text-text-muted">
+                    <p className="text-sm text-text-muted">
                       {item.value || "No data available for this risk level"}
                     </p>
                   </div>
