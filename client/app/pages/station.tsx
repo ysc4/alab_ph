@@ -373,7 +373,7 @@ const Station: React.FC<{
                   <Line
                     type="monotone"
                     dataKey="temp"
-                    stroke="#1E40AF"
+                    stroke="#2563EB"
                     name="Actual Heat Index"
                     connectNulls
                   />
@@ -417,7 +417,7 @@ const Station: React.FC<{
                 <Line
                   type="monotone"
                   dataKey="t_plus_one"
-                  stroke="#1E40AF"
+                  stroke="#2563EB"
                   name="1-Day Ahead Error"
                 />
                 <Line

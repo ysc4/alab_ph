@@ -383,7 +383,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="observed" stroke="#1E40AF" name="Observed" />
+                <Line type="monotone" dataKey="observed" stroke="#2563EB" name="Observed" />
                 <Line type="monotone" dataKey="avg_model_forecasted" stroke="#7C3AED" name="Average Model Forecasted" isAnimationActive={false} />
                 <Line type="monotone" dataKey="avg_pagasa_forecasted" stroke="#0891B2" name="Average PAGASA Forecasted" isAnimationActive={false} />
               </LineChart>
@@ -410,7 +410,7 @@ const Home = forwardRef<{ downloadData: () => void; refreshData: () => void }, H
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="t_plus_one" stroke="#1E40AF" name="1-Day Ahead Error" />
+                <Line type="monotone" dataKey="t_plus_one" stroke="#2563EB" name="1-Day Ahead Error" />
                 <Line type="monotone" dataKey="t_plus_two" stroke="#7C3AED" name="2-Day Ahead Error" />
               </LineChart>
             </ResponsiveContainer>
