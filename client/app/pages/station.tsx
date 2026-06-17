@@ -373,21 +373,21 @@ const Station: React.FC<{
                   <Line
                     type="monotone"
                     dataKey="temp"
-                    stroke="#1D4ED8"
+                    stroke="#1E40AF"
                     name="Actual Heat Index"
                     connectNulls
                   />
                   <Line
                     type="monotone"
                     dataKey="pagasa_forecasted"
-                    stroke="#0E7490"
+                    stroke="#0891B2"
                     name="PAGASA-Forecasted Heat Index"
                     connectNulls
                   />
                   <Line
                     type="monotone"
                     dataKey="model_forecasted"
-                    stroke="#6D28D9"
+                    stroke="#7C3AED"
                     name="Model-Forecasted Heat Index"
                     connectNulls
                   />
@@ -417,13 +417,13 @@ const Station: React.FC<{
                 <Line
                   type="monotone"
                   dataKey="t_plus_one"
-                  stroke="#1D4ED8"
+                  stroke="#1E40AF"
                   name="1-Day Ahead Error"
                 />
                 <Line
                   type="monotone"
                   dataKey="t_plus_two"
-                  stroke="#6D28D9"
+                  stroke="#7C3AED"
                   name="2-Day Ahead Error"
                 />
               </LineChart>
